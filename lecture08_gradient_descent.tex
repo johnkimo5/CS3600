@@ -1,0 +1,278 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{booktabs}
+
+\geometry{margin=1in}
+
+\definecolor{keycolor}{RGB}{180, 70, 0}
+\definecolor{notecolor}{RGB}{240, 240, 255}
+\definecolor{takeawaycolor}{RGB}{255, 245, 230}
+
+\newmdenv[
+  backgroundcolor=notecolor,
+  linecolor=keycolor,
+  linewidth=1.5pt,
+  topline=false, bottomline=false, rightline=false,
+  innerleftmargin=10pt, innerrightmargin=10pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor=takeawaycolor,
+  linecolor=keycolor,
+  linewidth=2pt,
+  roundcorner=5pt,
+  innerleftmargin=10pt, innerrightmargin=10pt,
+  innertopmargin=8pt, innerbottommargin=8pt,
+]{takeawaybox}
+
+\newtheorem{theorem}{Theorem}
+
+\title{
+  \textbf{CS 3600: Introduction to Artificial Intelligence}\\[0.5em]
+  \large Lecture 8 --- Linear Regression and Gradient Descent\\[0.3em]
+  \normalsize Aaron Hillegass, Georgia Tech
+}
+\author{Lecture Notes}
+\date{}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% ---------------------------------------------------------------
+\section{The Machine Learning Workflow}
+% ---------------------------------------------------------------
+
+Every machine learning problem follows the same high-level pattern:
+
+\begin{enumerate}
+  \item \textbf{Model} --- Develop a model with a set of tunable parameters.
+  \item \textbf{Loss Function} --- Define a function that measures how well the model fits the data. Lower is better.
+  \item \textbf{Train} --- Use data to optimize the parameters so that the loss function is minimized.
+  \item \textbf{Test} --- Evaluate the trained model on unseen data to measure real-world performance.
+  \item \textbf{Deploy} --- Put the model into production.
+\end{enumerate}
+
+\begin{notebox}
+This workflow is universal. Whether you are fitting a two-parameter line or training a trillion-parameter language model, these five steps always apply.
+\end{notebox}
+
+% ---------------------------------------------------------------
+\section{Simple Linear Regression}
+% ---------------------------------------------------------------
+
+\subsection{The Model}
+
+Consider predicting how much power (watts) can be extracted from gasoline based on its water content. We hypothesize a linear relationship:
+\[
+\hat{y} = mx + b
+\]
+where $x$ is the percentage of water in the fuel and $\hat{y}$ is the predicted power output. The \textbf{parameters} are the slope $m$ and the intercept $b$.
+
+\subsection{The Bias-Variance Tradeoff}
+
+\begin{notebox}
+GPT-4 has approximately 1.76 trillion parameters. Our model has 2.
+\end{notebox}
+
+The number of parameters is a fundamental design choice:
+\begin{itemize}
+  \item \textbf{Too many parameters} (high variance / overfitting): The model memorizes the training data and performs poorly on unseen data.
+  \item \textbf{Too few parameters} (high bias / underfitting): The model is not expressive enough to capture the true patterns.
+\end{itemize}
+
+The sweet spot is a model complex enough to capture the signal, but simple enough to generalize.
+
+% ---------------------------------------------------------------
+\section{Loss Functions}
+% ---------------------------------------------------------------
+
+\subsection{L1 Loss (Mean Absolute Error)}
+
+A first instinct for measuring fit is the sum of absolute distances between predictions and actual values --- the L1 loss:
+\[
+\mathcal{L}_1 = \sum_i |y_i - \hat{y}_i|
+\]
+
+\textbf{Problem:} L1 loss is not unique. Multiple very different lines can achieve the same L1 loss, making optimization unreliable.
+
+\begin{takeawaybox}
+\textit{Picking the wrong loss function can doom your efforts.}
+\end{takeawaybox}
+
+\subsection{L2 Loss (Mean Squared Error)}
+
+Squaring the errors fixes the uniqueness problem and penalizes large errors more heavily:
+\[
+\mathcal{L}(\theta) = \frac{1}{n}\sum_i (y_i - \hat{y}_i)^2
+\]
+
+Using the mean (dividing by $n$) instead of the sum ensures the loss magnitude does not depend on the batch size, so the learning rate $\alpha$ does not need to be retuned when the batch size changes.
+
+% ---------------------------------------------------------------
+\section{Solving Linear Regression with Matrices}
+% ---------------------------------------------------------------
+
+\subsection{Setup}
+
+For $n$ training examples with $d$ features, we define:
+\[
+\boldsymbol{X} = \begin{pmatrix} 1 & x_{1,1} & x_{1,2} & \cdots & x_{1,d} \\ 1 & x_{2,1} & x_{2,2} & \cdots & x_{2,d} \\ \vdots & & & & \vdots \\ 1 & x_{n,1} & x_{n,2} & \cdots & x_{n,d} \end{pmatrix}, \quad
+\vec{y} = \begin{pmatrix} y_1 \\ \vdots \\ y_n \end{pmatrix}, \quad
+\vec{\beta} = \begin{pmatrix} \beta_0 \\ \beta_1 \\ \vdots \\ \beta_d \end{pmatrix}
+\]
+
+The predictions are $\hat{y} = \boldsymbol{X}\vec{\beta}$, the residuals are $\vec{r} = \vec{y} - \hat{y}$, and the L2 loss expands to:
+\[
+\mathcal{L}(\vec{\beta}) = \vec{r}^T\vec{r} = \vec{y}^T\vec{y} - 2\vec{\beta}^T\boldsymbol{X}^T\vec{y} + \vec{\beta}^T\boldsymbol{X}^T\boldsymbol{X}\vec{\beta}
+\]
+
+\subsection{Closed-Form Solution (Normal Equations)}
+
+Taking the gradient with respect to $\vec{\beta}$:
+\[
+\nabla\mathcal{L}(\vec{\beta}) = -2\boldsymbol{X}^T\vec{y} + 2\boldsymbol{X}^T\boldsymbol{X}\vec{\beta}
+\]
+
+Setting to zero and solving:
+\[
+\boldsymbol{X}^T\boldsymbol{X}\vec{\beta} = \boldsymbol{X}^T\vec{y}
+\]
+\[
+\boxed{\vec{\beta} = (\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\vec{y}}
+\]
+
+This is called the \textbf{Normal Equation} and gives the exact optimal parameters in closed form. We are lucky: the L2 loss for linear regression is convex, so local minima are global minima.
+
+\begin{notebox}
+\textbf{When does this not work?} Neural networks have no closed-form solution for their loss (which is non-convex and extremely high-dimensional). For most real models, we must resort to \textbf{Gradient Descent}.
+\end{notebox}
+
+% ---------------------------------------------------------------
+\section{Gradient Descent}
+% ---------------------------------------------------------------
+
+\subsection{Review: The Gradient}
+
+For a scalar-valued function $f(\vec{x}) : \mathbb{R}^n \to \mathbb{R}$, the gradient is the vector of all partial derivatives:
+\[
+\nabla f(\vec{x}) = \left[\frac{\partial f}{\partial x_1}, \ldots, \frac{\partial f}{\partial x_n}\right]
+\]
+
+Key properties:
+\begin{itemize}
+  \item The gradient points in the direction of \textbf{steepest ascent}.
+  \item It is always perpendicular to the contour lines (level sets) of $f$.
+  \item Therefore, $-\nabla f$ points in the direction of steepest \textbf{descent}.
+\end{itemize}
+
+\subsection{The Algorithm}
+
+Gradient descent iteratively moves parameters in the direction that decreases the loss:
+
+\begin{enumerate}
+  \item Start with an initial guess $\theta_0$ (often random).
+  \item Compute the gradient $\nabla\mathcal{L}(\theta_0)$.
+  \item Update: $\theta_1 := \theta_0 - \alpha\,\nabla\mathcal{L}(\theta_0)$ \quad where $\alpha > 0$ is the \textbf{learning rate}.
+  \item Repeat until $\|\nabla\mathcal{L}(\theta_m)\|$ is sufficiently small.
+\end{enumerate}
+
+For linear regression with MSE, the gradient has a nice closed form:
+\[
+\nabla\mathcal{L}(\beta) = \frac{2}{n}\boldsymbol{X}^T\!\left(\boldsymbol{X}\vec{\beta} - \vec{y}\right)
+\]
+
+\subsection{Choosing the Learning Rate $\alpha$}
+
+The learning rate is the most important hyperparameter in gradient descent:
+
+\begin{itemize}
+  \item \textbf{Too large:} Steps overshoot the minimum, causing the loss to oscillate or diverge.
+  \item \textbf{Too small:} Steps are tiny, causing extremely slow convergence.
+\end{itemize}
+
+One practical approach: \emph{gradually decrease} $\alpha$ over training (learning rate scheduling). Start large to make fast progress, then shrink to fine-tune near the minimum.
+
+\subsection{The Blessing of Dimensionality}
+
+In 2D, it is easy to get stuck in a local minimum. But deep learning models have millions or billions of parameters. For a stable local minimum to exist, \emph{every single} second partial derivative must be positive simultaneously --- which is extremely unlikely in very high dimensions. Most apparent local minima in deep learning are actually \textbf{saddle points}, from which gradient descent naturally escapes.
+
+\begin{takeawaybox}
+\textbf{Intuition:} Being stuck at a local minimum in 1,000,000 dimensions would require the loss to increase in all one million directions at once. Instead, there is almost always some direction to keep descending.
+\end{takeawaybox}
+
+% ---------------------------------------------------------------
+\section{Practical Improvements to Gradient Descent}
+% ---------------------------------------------------------------
+
+\subsection{Data Standardization}
+
+When different features have very different scales, the loss landscape becomes \textbf{ill-conditioned}: elongated ellipses instead of circular contours. A single learning rate $\alpha$ that works well for one dimension does terribly for another.
+
+\textbf{Solution --- Standardize before training:} For each feature $i$, compute the mean $\mu_i$ and standard deviation $\sigma_i$ from the training set, then rescale:
+\[
+\hat{x}_i = \frac{x_i - \mu_i}{\sigma_i}
+\]
+This centers every feature at 0 with unit variance, making the contours rounder and convergence faster.
+
+\begin{notebox}
+\textbf{Critical rule:} Compute $\mu$ and $\sigma$ on the \emph{training} set only. Apply those same values at test and deployment time. \textbf{Never} recompute them on test data --- that would be data leakage.
+\end{notebox}
+
+\subsection{Mini-Batch Gradient Descent and Momentum}
+
+When the full dataset is too large to fit in GPU memory, we split it into \textbf{mini-batches}, shuffling the data before each epoch. Gradients computed on mini-batches are noisy but still point roughly in the right direction.
+
+To smooth the noisy updates, we use \textbf{momentum}: a running exponential average of past gradients:
+\[
+\vec{v} := m\vec{v} + (1-m)\,\nabla\mathcal{L}(\theta_i), \qquad \theta_{i+1} := \theta_i - \alpha\vec{v}
+\]
+where $m \in [0,1)$ controls how much of the previous velocity is retained. Momentum also helps roll through saddle points.
+
+\subsection{Adam Optimizer}
+
+\textbf{Adam} (Adaptive Moment Estimation), created in 2014 by Kingma and Ba, is the default optimizer in virtually all modern deep learning. It combines:
+\begin{itemize}
+  \item \textbf{Momentum:} tracks a running average of gradients (1st moment).
+  \item \textbf{Adaptive learning rates:} scales the step size per parameter using a running average of squared gradients (2nd moment).
+  \item \textbf{Bias correction:} corrects for the fact that moment estimates start at zero.
+\end{itemize}
+
+Adam adapts the effective learning rate for each parameter individually, making it robust to the learning rate choice and well-suited for sparse gradients and non-stationary problems.
+
+\begin{takeawaybox}
+\textbf{The central theme:} \textit{Differentiable = Good.} Gradient descent can only optimize functions it can differentiate. The entire design of modern ML models --- from activation functions to loss functions to the softmax --- is driven by the requirement of differentiability.
+\end{takeawaybox}
+
+% ---------------------------------------------------------------
+\section{Summary and Key Takeaways}
+% ---------------------------------------------------------------
+
+\begin{takeawaybox}
+\textbf{Key Takeaways from Lecture 8}
+\begin{enumerate}
+  \item The ML workflow is always: Model $\to$ Loss $\to$ Train $\to$ Test $\to$ Deploy.
+  \item \textbf{MSE} (L2 loss) is preferred over MAE (L1 loss) because it has a unique minimum and is differentiable everywhere.
+  \item Linear regression has a \textbf{closed-form solution}: $\vec{\beta} = (\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\vec{y}$.
+  \item \textbf{Gradient descent} iteratively steps in the direction of $-\nabla\mathcal{L}$. The step size $\alpha$ must be tuned carefully.
+  \item \textbf{Standardize} your input features before training to avoid ill-conditioning.
+  \item \textbf{Adam} is the go-to optimizer: it combines momentum and adaptive learning rates and is included in all major deep learning frameworks.
+  \item In high dimensions, true local minima are rare --- most problematic flat spots are saddle points that gradient descent naturally escapes.
+\end{enumerate}
+\end{takeawaybox}
+
+\subsection{Further Resources}
+\begin{itemize}
+  \item \textbf{Reading:} Sections 19.5 -- 19.7.1 of the course textbook
+  \item \textbf{Slides:} by Aaron Hillegass, Georgia Tech
+\end{itemize}
+
+\end{document}

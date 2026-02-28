@@ -1,0 +1,299 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{booktabs}
+\usepackage{array}
+
+\geometry{margin=1in}
+
+\definecolor{keycolor}{RGB}{180, 70, 0}
+\definecolor{notecolor}{RGB}{240, 240, 255}
+\definecolor{takeawaycolor}{RGB}{255, 245, 230}
+
+\newmdenv[
+  backgroundcolor=notecolor,
+  linecolor=keycolor,
+  linewidth=1.5pt,
+  topline=false, bottomline=false, rightline=false,
+  innerleftmargin=10pt, innerrightmargin=10pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor=takeawaycolor,
+  linecolor=keycolor,
+  linewidth=2pt,
+  roundcorner=5pt,
+  innerleftmargin=10pt, innerrightmargin=10pt,
+  innertopmargin=8pt, innerbottommargin=8pt,
+]{takeawaybox}
+
+\title{
+  \textbf{CS 3600: Introduction to Artificial Intelligence}\\[0.5em]
+  \large Lecture 9 --- Classification and Machine Learning\\[0.3em]
+  \normalsize Aaron Hillegass, Georgia Tech
+}
+\author{Lecture Notes}
+\date{}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% ---------------------------------------------------------------
+\section{From Regression to Classification}
+% ---------------------------------------------------------------
+
+The same ML workflow applies to classification: build a model, define a loss, minimize the loss with gradient descent, then evaluate. The challenge is adapting each piece for the case where the output is a discrete class label rather than a continuous number.
+
+\textbf{Running example:} Female blue whales tend to be longer and heavier than males. Can we classify whale gender from length and weight?
+
+A natural first attempt: use a linear model and predict Female if $\beta_0 + \beta_1 \times \text{length} + \beta_2 \times \text{weight} > 0$. This defines a linear decision boundary. The key difficulty is finding a \emph{differentiable loss function} to optimize the parameters $\beta$.
+
+% ---------------------------------------------------------------
+\section{Evaluating a Binary Classifier}
+% ---------------------------------------------------------------
+
+\subsection{The Confusion Matrix}
+
+For binary classification, every prediction falls into one of four cells:
+
+\begin{center}
+\begin{tabular}{l|cc}
+ & \textbf{Predicted Negative} & \textbf{Predicted Positive} \\\hline
+\textbf{Actually Negative} & True Negative (TN) & False Positive (FP) \\
+\textbf{Actually Positive} & False Negative (FN) & True Positive (TP) \\
+\end{tabular}
+\end{center}
+
+\subsection{Metrics}
+
+From the confusion matrix we compute four key metrics. Using the stroke example ($n = 345$, TP = 100, TN = 200, FP = 25, FN = 20):
+
+\[
+\text{Accuracy} = \frac{\text{TP} + \text{TN}}{n} = \frac{300}{345} \approx 87\%
+\]
+\[
+\text{Recall} = \frac{\text{TP}}{\text{Actual Positives}} = \frac{100}{120} \approx 83\%
+\]
+\[
+\text{Precision} = \frac{\text{TP}}{\text{Predicted Positives}} = \frac{100}{125} \approx 80\%
+\]
+\[
+\text{F1} = 2 \times \frac{\text{Recall} \times \text{Precision}}{\text{Recall} + \text{Precision}} \approx 0.816
+\]
+
+\begin{notebox}
+\textbf{Recall vs.\ Precision tradeoff:} In medical diagnosis, missing a true positive (low recall) can be fatal --- lower the threshold to catch more positives. In spam filtering, falsely flagging legitimate emails (low precision) is costly --- raise the threshold. The threshold is a business decision, not a model decision.
+\end{notebox}
+
+\subsection{ROC Curve and AUC}
+
+Rather than evaluating at a single threshold, a \textbf{ROC} (Receiver Operating Characteristics) curve sweeps the threshold from 0 to 1 and plots the True Positive Rate against the False Positive Rate at each point.
+
+The \textbf{AUC} (Area Under the Curve) summarizes this curve in a single number:
+\begin{itemize}
+  \item AUC = 1.0: perfect classifier
+  \item AUC = 0.5: random classifier (the diagonal)
+  \item AUC $<$ 0.5: worse than random (but can be flipped)
+\end{itemize}
+
+AUC is threshold-independent and is often the best single metric for comparing classifiers.
+
+% ---------------------------------------------------------------
+\section{Loss Functions for Classification}
+% ---------------------------------------------------------------
+
+\subsection{Why Not Accuracy?}
+
+Accuracy, recall, and F1 are all \textbf{not differentiable} --- they depend on a hard threshold (predict 1 if $\hat{y} > 0.5$), which creates discontinuities. Gradient descent cannot work with them directly.
+
+\textbf{Solution:} Make the model output a smooth probability-like value, then define a differentiable loss on those probabilities.
+
+\subsection{The Sigmoid (Logistic) Function}
+
+The sigmoid function squashes any real number into $(0, 1)$:
+\[
+\sigma(x) = \frac{1}{1+e^{-x}}
+\]
+
+Useful properties:
+\[
+1 - \sigma(x) = \sigma(-x) \qquad \sigma^{-1}(p) = \log\!\left(\frac{p}{1-p}\right) \quad \text{for } 0 < p < 1
+\]
+\[
+\sigma'(x) = \frac{e^x}{(1+e^x)^2} = \sigma(x)(1-\sigma(x))
+\]
+
+By composing the sigmoid with our linear model, we get soft predictions:
+\[
+\hat{y} = \sigma(\beta_0 + \beta_1 x_1 + \beta_2 x_2) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 x_1 + \beta_2 x_2)}} \in (0,1)
+\]
+
+To make a hard classification, threshold $\hat{y}$ at 0.5 (default), or adjust the threshold to tune recall/precision.
+
+\subsection{Why Not Mean Squared Error for Classification?}
+
+\[
+\text{MSE} = \frac{1}{n}\sum_i\left(y_i - \frac{1}{1+e^{-\beta^T x_i}}\right)^2
+\]
+
+Two problems:
+\begin{enumerate}
+  \item MSE with sigmoid is \textbf{not convex}, so gradient descent may converge to a local minimum.
+  \item It is conceptually odd: $y$ is always exactly 0 or 1, while $\hat{y} \in (0,1)$.
+\end{enumerate}
+
+\subsection{Cross-Entropy Loss}
+
+Derived from maximum likelihood estimation, cross-entropy is the correct loss for classification. For binary labels $y_i \in \{0,1\}$:
+\[
+\boxed{\text{CE} = -\frac{1}{n}\sum_i\bigl[y_i\log(\hat{y}_i) + (1-y_i)\log(1-\hat{y}_i)\bigr]}
+\]
+
+Why this works:
+\begin{itemize}
+  \item When $y_i = 1$ and $\hat{y}_i \to 1$: loss $\to 0$ (correct, confident).
+  \item When $y_i = 1$ and $\hat{y}_i \to 0$: loss $\to \infty$ (wrong and confident --- heavily penalized).
+  \item Makes the optimization problem \textbf{convex}, guaranteeing a global minimum.
+\end{itemize}
+
+\begin{takeawaybox}
+\textbf{Logistic Regression} is simply: (1) linear combination of features $\beta^T x$, (2) feed through sigmoid, (3) optimize $\beta$ with cross-entropy loss. Despite the name, it is a \emph{classifier}, not a regressor.
+\end{takeawaybox}
+
+\subsection{Regularization: Preventing Runaway Parameters}
+
+If the training data is linearly separable, cross-entropy loss pushes the parameters toward $\pm\infty$, turning the sigmoid into a step function. This model is overconfident and generalizes poorly.
+
+To prevent this, add an L2 regularization penalty:
+\[
+\mathcal{L}(\beta) = -\frac{1}{n}\sum_i\bigl[y_i\log(\hat{y}_i) + (1-y_i)\log(1-\hat{y}_i)\bigr] + \lambda(\beta^T\beta)
+\]
+The hyperparameter $\lambda > 0$ controls the strength of regularization, penalizing large weights and keeping the model calibrated.
+
+% ---------------------------------------------------------------
+\section{Multi-Class Classification}
+% ---------------------------------------------------------------
+
+\subsection{Extending to $k > 2$ Classes}
+
+For $k$ classes, we assign each class its own parameter vector $\vec{\beta}_c$. For each input $\vec{x}$, we compute a score $z_c = \vec{\beta}_c^T\vec{x}$ for every class. A hard classifier would simply pick $\arg\max_c z_c$, but \texttt{max} is not differentiable.
+
+\subsection{Softmax: A Differentiable Argmax}
+
+The \textbf{LogSumExp} function, $\log\sum_k e^{x_k}$, is a smooth approximation to \texttt{max}: when one $x_k$ dominates, $\log\sum e^{x_i} \approx x_k$. Its gradient is the \textbf{Softmax}:
+\[
+\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}}
+\]
+
+Properties:
+\begin{itemize}
+  \item $0 < \text{softmax}(z_i) < 1$ for all $i$
+  \item $\sum_j \text{softmax}(z_j) = 1$ (outputs are a probability distribution)
+  \item Differentiable everywhere
+\end{itemize}
+
+\textbf{Numerical example:} Given scores $\boldsymbol{Z} = [-1.9,\ 2.1,\ 4.8]$:
+\[
+e^{\boldsymbol{Z}} = [0.1496,\ 8.166,\ 121.51], \quad \Sigma(e^{\boldsymbol{Z}}) = 129.82
+\]
+\[
+\text{softmax}(\boldsymbol{Z}) = [0.00115,\ 0.0629,\ 0.9359]
+\]
+The model is 93.6\% confident in class 3.
+
+\subsection{Temperature-Scaled Softmax}
+
+The \textbf{temperature} parameter $T$ controls how ``peaked'' the distribution is:
+\[
+\text{softmax}_T(r_i) = \frac{\exp(r_i/T)}{\sum_j \exp(r_j/T)}
+\]
+\begin{itemize}
+  \item $T \to 0$: approaches a one-hot (argmax) distribution.
+  \item $T = 1$: standard softmax.
+  \item $T \to \infty$: approaches a uniform distribution (maximum uncertainty).
+\end{itemize}
+Temperature scaling is used in knowledge distillation and controlling the randomness of language model outputs.
+
+\subsection{Evaluating Multi-Class Classifiers}
+
+For $k$ classes, the confusion matrix generalizes to a $k \times k$ table. Per-class precision, recall, and F1 can be computed by treating each class as a binary ``one vs.\ rest'' problem, then averaged (macro or weighted) for a single summary score.
+
+% ---------------------------------------------------------------
+\section{Multi-Class Loss: Generalizing Cross-Entropy}
+% ---------------------------------------------------------------
+
+\subsection{One-Hot Encoding and Matrix Formulation}
+
+For $n$ samples and $k$ classes:
+\begin{itemize}
+  \item $\boldsymbol{Y}$ is an $n \times k$ \textbf{one-hot} matrix: $y_{i,j} = 1$ if sample $i$ is of class $j$, else 0.
+  \item $\hat{\boldsymbol{Y}}$ is an $n \times k$ matrix of softmax outputs: $\hat{y}_{i,j}$ is the predicted probability that sample $i$ is of class $j$.
+\end{itemize}
+
+The \textbf{Mean Cross-Entropy} loss generalizes directly:
+\[
+\boxed{\mathcal{L}(\beta) = -\sum_{i=1}^{n}\left[\sum_{j=1}^{k} y_{i,j}\log(\hat{y}_{i,j})\right]}
+\]
+
+Because $y_{i,j}$ is one-hot, only the log-probability of the correct class contributes to the loss for each sample.
+
+\subsection{Matrix Form of the Full Model}
+
+With $d$ input features, $n$ samples, and $k$ classes:
+\[
+\boldsymbol{X}_{n\times(d+1)},\quad \boldsymbol{\beta}_{(d+1)\times k},\quad \boldsymbol{Z} = \boldsymbol{X}\boldsymbol{\beta},\quad \hat{\boldsymbol{Y}} = \text{softmax}(\boldsymbol{Z}),\quad \mathcal{L} = \text{cross-entropy}(\hat{\boldsymbol{Y}},\boldsymbol{Y})
+\]
+
+\subsection{Gradient via the Chain Rule}
+
+A beautiful result: the combined gradient of softmax + cross-entropy with respect to the pre-softmax scores $\boldsymbol{Z}$ is simply:
+\[
+\frac{\partial\mathcal{L}}{\partial z_{i,j}} = \hat{y}_{i,j} - y_{i,j}
+\]
+This is prediction minus truth --- elegant and computationally cheap. Applying the chain rule through $\boldsymbol{Z} = \boldsymbol{X}\boldsymbol{\beta}$:
+\[
+\boxed{\nabla_\beta \mathcal{L} = \boldsymbol{X}^T(\hat{\boldsymbol{Y}} - \boldsymbol{Y})}
+\]
+
+This compact formula drives parameter updates for the entire multi-class logistic regression model. Note that one class's parameter vector is redundant (can be fixed to zero) since softmax scores are relative --- this is \textbf{multinomial logistic regression}.
+
+% ---------------------------------------------------------------
+\section{Summary and Key Takeaways}
+% ---------------------------------------------------------------
+
+\begin{takeawaybox}
+\textbf{Key Takeaways from Lecture 9}
+\begin{enumerate}
+  \item \textbf{Accuracy/F1/Recall are not differentiable} --- we cannot use them directly as loss functions. We need smooth probability outputs.
+
+  \item \textbf{Sigmoid} squashes any real value into $(0,1)$. Combined with a linear model, it gives logistic regression.
+
+  \item \textbf{Cross-entropy loss} is the correct loss for classification. It is convex (for logistic regression), and heavily penalizes confident wrong predictions.
+
+  \item \textbf{L2 regularization} $(\lambda\beta^T\beta)$ prevents parameters from exploding when data is linearly separable.
+
+  \item \textbf{Softmax} generalizes sigmoid to $k > 2$ classes. It is the differentiable approximation to argmax, with outputs summing to 1.
+
+  \item The combined gradient of \textbf{softmax + cross-entropy} is just $\hat{Y} - Y$ --- prediction minus truth. The full gradient is $\nabla_\beta\mathcal{L} = X^T(\hat{Y} - Y)$.
+
+  \item The \textbf{ROC curve / AUC} evaluates a classifier across all thresholds, giving a threshold-independent quality measure.
+
+  \item \textbf{Temperature} controls softmax sharpness: low $T$ = confident, high $T$ = uniform.
+\end{enumerate}
+\end{takeawaybox}
+
+\subsection{Further Resources}
+\begin{itemize}
+  \item \textbf{Slides:} by Aaron Hillegass, Georgia Tech
+  \item \textbf{Proof of softmax/CE gradient:} \url{https://medium.com/analytics-vidhya/derivative-of-log-loss-function-for-logistic-regression-9b832f025c2d}
+\end{itemize}
+
+\end{document}
