@@ -1,0 +1,404 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+\geometry{margin=1in}
+
+\definecolor{keycolor}{RGB}{180, 70, 0}
+\definecolor{notecolor}{RGB}{240, 240, 255}
+\definecolor{takeawaycolor}{RGB}{255, 245, 230}
+
+\newmdenv[
+  backgroundcolor=notecolor,
+  linecolor=keycolor,
+  linewidth=1.5pt,
+  topline=false,
+  bottomline=false,
+  rightline=false,
+  leftmargin=0pt,
+  rightmargin=0pt,
+  innerleftmargin=10pt,
+  innerrightmargin=10pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor=takeawaycolor,
+  linecolor=keycolor,
+  linewidth=2pt,
+  roundcorner=5pt,
+  innerleftmargin=10pt,
+  innerrightmargin=10pt,
+  innertopmargin=8pt,
+  innerbottommargin=8pt,
+]{takeawaybox}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+
+\title{
+  \textbf{CS 3600: Introduction to Artificial Intelligence}\\[0.5em]
+  \large Lecture 10 --- Neural Networks\\[0.3em]
+  \normalsize Aaron Hillegass, Georgia Tech
+}
+\author{Lecture Notes}
+\date{}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% ---------------------------------------------------------------
+\section{Motivation: Why Neural Networks?}
+% ---------------------------------------------------------------
+
+\subsection{Where We Left Off}
+
+In previous lectures we built a solid foundation using \textbf{linear models}:
+\begin{itemize}
+  \item Linear combinations of features: $\beta_0 + \beta_1 x_1 + \cdots + \beta_d x_d$
+  \item The \textbf{sigmoid} activation $\sigma(x) \to (0,1)$ for producing probabilities
+  \item \textbf{Softmax} for multi-class probability distributions
+  \item Loss functions: Mean Squared Error (MSE) for regression, Mean Cross-Entropy (MCE) for classification
+  \item \textbf{Gradient descent} to find parameters that minimize the loss
+\end{itemize}
+
+\begin{notebox}
+\textbf{The Key Limitation:} All of these tools only model \emph{linear} relationships.
+Real-world data is almost never linearly separable. A fish classifier, for example,
+needs curved boundaries to separate Trout, Bass, and Catfish by length and mass ---
+a linear model simply cannot do this.
+\end{notebox}
+
+\subsection{Universal Function Approximation}
+
+We need a model that, given the right parameter values $\theta$, can approximate \emph{any} function $f(\vec{x}) \to \mathbb{R}$.
+
+Candidate model families include:
+\begin{itemize}
+  \item \textbf{Multilayer Perceptrons (MLPs)} --- our focus this lecture
+  \item Kernel Methods (e.g., SVMs with RBF kernels)
+  \item Kolmogorov--Arnold Networks (KANs) --- a recent alternative
+\end{itemize}
+
+\begin{takeawaybox}
+\textbf{Intuition:} Think of non-linear data as a crumpled piece of paper. A linear model
+tries to cut through it with a flat plane --- hopeless. A neural network can \emph{bend}
+the space to flatten it first, then apply a linear separator.
+\end{takeawaybox}
+
+% ---------------------------------------------------------------
+\section{Neural Network Architecture}
+% ---------------------------------------------------------------
+
+\subsection{The Basic Building Block}
+
+A neural network stacks \textbf{layers} of computation. Each neuron in a hidden layer:
+\begin{enumerate}
+  \item Takes a \emph{weighted sum} of all inputs plus a bias
+  \item Passes the result through a non-linear \textbf{activation function}
+\end{enumerate}
+
+For a simple network with inputs $x_1, x_2$, three hidden neurons, and one output, the hidden activations are:
+\[
+(a_1 \; a_2 \; a_3) := \sigma\!\left[\,(x_1 \; x_2)\begin{pmatrix} w^1_{1,1} & w^1_{1,2} & w^1_{1,3} \\ w^1_{2,1} & w^1_{2,2} & w^1_{2,3} \end{pmatrix} + (b^1_1 \; b^1_2 \; b^1_3)\,\right]
+\]
+The output is then:
+\[
+\hat{y} := (a_1 \; a_2 \; a_3)\begin{pmatrix} w^2_{1,1} \\ w^2_{2,1} \\ w^2_{3,1} \end{pmatrix} + b^2_1
+\]
+The loss for a single example (regression) is:
+\[
+\mathcal{L} := (y - \hat{y})^2
+\]
+
+\begin{notebox}
+\textbf{Key Insight:} A neural network is simply a \emph{composition of functions}.
+Each layer transforms its input, and the chain of transformations can represent
+highly complex mappings. The activation function is what introduces non-linearity ---
+without it, stacking layers would still only produce a linear model.
+\end{notebox}
+
+\subsection{Batch Processing}
+
+In practice, we process many examples simultaneously. For a batch of $n$ examples with $d$ input features and $k$ hidden units, the fully-connected layer computes:
+
+\[
+Y_{n \times k} := X_{n \times d} \cdot W_{d \times k} + B_{n \times k}
+\]
+
+where each row of $B$ is a copy of the bias vector $\vec{b}$. The MSE loss over a batch is:
+\[
+\vec{r} := y - \hat{y}, \qquad \mathcal{L} := \frac{\vec{r}^T\vec{r}}{n}
+\]
+
+Processing in batches is critical for GPU efficiency --- matrix-matrix multiplication is \emph{much} faster than repeated matrix-vector multiplication.
+
+\subsection{The Universal Approximation Theorem}
+
+\begin{theorem}[Universal Approximation, 1989]
+A neural network with a single hidden layer of sufficient width and a sigmoid activation function can approximate any continuous function to arbitrary precision.
+\end{theorem}
+
+This result, proven in 1989, is the theoretical backbone of deep learning. It tells us that the architecture is expressive enough --- the challenge is \emph{finding} the right weights.
+
+\begin{takeawaybox}
+\textbf{Takeaway:} One hidden layer is \emph{theoretically} sufficient. In practice,
+deeper networks (more layers) often learn better representations with fewer total
+parameters. Width vs.\ depth is an active research area.
+\end{takeawaybox}
+
+% ---------------------------------------------------------------
+\section{Activation Functions}
+% ---------------------------------------------------------------
+
+Activation functions introduce the non-linearity that makes neural networks powerful.
+Each has different properties, and the choice matters.
+
+\subsection{Sigmoid}
+
+\[
+\sigma(x) = \frac{1}{1 + e^{-x}}, \qquad \sigma'(x) = \sigma(x)(1 - \sigma(x))
+\]
+
+Outputs are in $(0,1)$, making it natural for probabilities. Its derivative has a clean closed form. \textbf{Downside:} saturates for large $|x|$, causing \emph{vanishing gradients} deep in a network.
+
+\subsection{ReLU (Rectified Linear Unit)}
+
+\[
+\text{relu}(x) = \max(0, x), \qquad \text{relu}'(x) = \begin{cases} 0 & \text{if } x < 0 \\ 1 & \text{if } x > 0 \end{cases}
+\]
+
+ReLU is the \textbf{default choice} in modern deep learning. Its gradient is either 0 or 1, which dramatically reduces the vanishing gradient problem. It is also cheap to compute.
+
+\begin{notebox}
+\textbf{Dying ReLU:} If a neuron's pre-activation is always negative, its gradient is
+always 0 and it \emph{never} learns. This is called the ``dying ReLU'' problem.
+Leaky-ReLU was designed to address this.
+\end{notebox}
+
+\subsection{Other Common Activations}
+
+\textbf{Tanh:}
+\[
+\tanh(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}}, \qquad \tanh'(x) = 1 - \tanh^2(x)
+\]
+Outputs in $(-1, 1)$; zero-centered (often better than sigmoid for hidden layers).
+
+\textbf{Leaky-ReLU:}
+\[
+\text{leaky-relu}(x) = \max(\alpha x,\, x), \quad \alpha > 0 \text{ (very small)}
+\]
+\[
+\text{leaky-relu}'(x) = \begin{cases} \alpha & \text{if } x < 0 \\ 1 & \text{if } x > 0 \end{cases}
+\]
+Prevents dying neurons by allowing a small gradient for negative inputs.
+
+\textbf{Swish:}
+\[
+\text{swish}(x) = x \cdot \sigma(x), \qquad \text{swish}'(x) = \text{swish}(x) + \sigma(x)(1 - \text{swish}(x))
+\]
+A smooth, self-gated activation that often outperforms ReLU in deep networks.
+
+% ---------------------------------------------------------------
+\section{Training Neural Networks: Backpropagation}
+% ---------------------------------------------------------------
+
+\subsection{The Core Idea: Everything is Differentiable}
+
+Neural networks are trained by gradient descent, just like linear models. For every parameter $w_{i,j,k}$ we need:
+\[
+\frac{\partial \mathcal{L}}{\partial w_{i,j,k}} = ?
+\]
+Then we update: $w \leftarrow w - \eta \cdot \frac{\partial \mathcal{L}}{\partial w}$.
+
+The key observation is that \textbf{every operation in a neural network is differentiable} (or nearly so --- ReLU is not differentiable at 0, but we handle this in practice). This means we can apply the \textbf{chain rule} to propagate gradients backwards through the network.
+
+\subsection{Forward and Backward Passes}
+
+Training alternates between two passes:
+\begin{itemize}
+  \item \textbf{Forward pass (inference):} Feed data through the network from input to output, computing and storing intermediate activations. Compute the loss.
+  \item \textbf{Backward pass (backpropagation):} Walk backwards through the network, computing gradients of the loss with respect to each layer's parameters using the chain rule.
+\end{itemize}
+
+\begin{takeawaybox}
+\textbf{Analogy:} The forward pass is like driving a car forward; the backward pass is
+like reviewing your route on a GPS to see where you should have turned differently.
+The gradient tells each parameter: ``increase me to increase the loss, decrease me to
+decrease it.''
+\end{takeawaybox}
+
+\subsection{Case Study: MNIST Classification}
+
+MNIST is the standard benchmark for image classification:
+\begin{itemize}
+  \item 60,000 training images and 10,000 test images of handwritten digits
+  \item Each image: $28 \times 28$ grayscale pixels, each an 8-bit unsigned integer
+  \item Task: classify into one of 10 classes $\{0, 1, \ldots, 9\}$
+\end{itemize}
+
+The homework architecture flattens each image to a vector of $28 \times 28 = 784$ values and feeds it through:
+\[
+\text{Input}(1000 \times 784)
+\xrightarrow{\text{FC}, W_1(784,128), b_1(128)}
+Z_1(1000 \times 128)
+\xrightarrow{\text{ReLU}}
+Z_2(1000 \times 128)
+\]
+\[
+\xrightarrow{\text{FC}, W_2(128,10), b_2(10)}
+Z_3(1000 \times 10)
+\xrightarrow{\text{Softmax}}
+\hat{y}(1000 \times 10)
+\xrightarrow{\text{MCE Loss}}
+\mathcal{L}
+\]
+
+\subsection{The Jacobian and the Chain Rule}
+
+For a function $f : \mathbb{R}^d \to \mathbb{R}^m$ with component functions $[f_1(\vec{x}), \ldots, f_m(\vec{x})]$, the \textbf{Jacobian matrix} is:
+\[
+J_f(x_1, \ldots, x_d) = \begin{pmatrix}
+\frac{\partial f_1}{\partial x_1} & \frac{\partial f_1}{\partial x_2} & \cdots & \frac{\partial f_1}{\partial x_d} \\
+\frac{\partial f_2}{\partial x_1} & \frac{\partial f_2}{\partial x_2} & \cdots & \frac{\partial f_2}{\partial x_d} \\
+\vdots & & \ddots & \vdots \\
+\frac{\partial f_m}{\partial x_1} & \frac{\partial f_m}{\partial x_2} & \cdots & \frac{\partial f_m}{\partial x_d}
+\end{pmatrix}
+\]
+
+The chain rule in matrix form: if $h : \mathbb{R}^m \to \mathbb{R}$, then:
+\[
+\nabla[h \circ f] = (J_f)^T (\nabla h)
+\]
+
+\begin{notebox}
+\textbf{Warning:} When activations are matrices (as in batch processing), gradients
+are also matrices, and the ``Jacobian'' is technically a four-dimensional tensor.
+However, the structure is sparse (many zeros), which we exploit for efficiency.
+\end{notebox}
+
+\subsection{Computing the Gradients: Layer by Layer}
+
+We walk backwards through the MNIST network.
+
+\subsubsection{Step 1 --- Gradient at the Output: $\nabla_{Z3}\mathcal{L}$}
+
+The last block is: $Z_3 \xrightarrow{\text{Softmax}} \hat{y} \xrightarrow{\text{MCE}} \mathcal{L}$.
+
+With $\hat{y}$ as the $n \times 10$ prediction matrix and $y$ as the $n \times 10$ one-hot label matrix:
+\[
+\boxed{\nabla_{Z3}\mathcal{L} = \frac{1}{n}(\hat{y} - y)}
+\]
+This is a $1000 \times 10$ matrix --- the same shape as $Z_3$ itself.
+
+\subsubsection{Step 2 --- Gradient w.r.t.\ Weights: $\nabla_W \mathcal{L}$}
+
+Since $Z3_{i,j} = b_j + \sum_{k=1}^{128} Z2_{i,k} W_{k,j}$, treating entries of $W$ as variables:
+\[
+\frac{\partial Z3_{i,j}}{\partial W_{k,a}} = \begin{cases} Z2_{i,k} & \text{if } a = j \\ 0 & \text{if } a \neq j \end{cases}
+\]
+Collecting these into the chain rule formula:
+\[
+\boxed{\nabla_W \mathcal{L} = Z2^T \big[\nabla_{Z3}\mathcal{L}\big]}
+\]
+Shape check: $(128 \times 1000) \cdot (1000 \times 10) = (128 \times 10)$ --- matches $W$.
+
+\subsubsection{Step 3 --- Gradient w.r.t.\ Biases: $\nabla_{\vec{b}}\mathcal{L}$}
+
+Since $\frac{\partial Z3_{i,j}}{\partial b_a} = 1$ if $a = j$ and $0$ otherwise, summing over the batch:
+\[
+\boxed{\frac{\partial \mathcal{L}}{\partial b_j} = \sum_{i=1}^{n} \big[\nabla_{Z3}\mathcal{L}\big]_{i,j}}
+\]
+In other words, $\nabla_{\vec{b}}\mathcal{L}$ is the \emph{column sum} of $\nabla_{Z3}\mathcal{L}$.
+
+\subsubsection{Step 4 --- Gradient w.r.t.\ Layer Input: $\nabla_{Z2}\mathcal{L}$}
+
+This gradient is needed to continue backpropagating into the previous layer:
+\[
+\frac{\partial Z3_{i,j}}{\partial Z2_{a,k}} = \begin{cases} W_{k,j} & \text{if } a = i \\ 0 & \text{if } a \neq i \end{cases}
+\]
+\[
+\boxed{\nabla_{Z2}\mathcal{L} = \big[\nabla_{Z3}\mathcal{L}\big] W^T}
+\]
+Shape check: $(1000 \times 10) \cdot (10 \times 128) = (1000 \times 128)$ --- matches $Z_2$.
+
+\subsubsection{Step 5 --- Gradient Through ReLU: $\nabla_{Z1}\mathcal{L}$}
+
+ReLU is applied element-wise: $Z2_{i,j} = \max(0, Z1_{i,j})$, so:
+\[
+\frac{\partial Z2_{i,j}}{\partial Z1_{i,j}} = \begin{cases} 1 & \text{if } Z1_{i,j} \geq 0 \\ 0 & \text{if } Z1_{i,j} < 0 \end{cases}
+\]
+Therefore:
+\[
+\boxed{\frac{\partial \mathcal{L}}{\partial Z1_{i,j}} = \begin{cases} \nabla_{Z2}\mathcal{L}_{i,j} & \text{if } Z1_{i,j} \geq 0 \\ 0 & \text{if } Z1_{i,j} < 0 \end{cases}}
+\]
+This is a simple \emph{masking} operation: pass the upstream gradient through wherever ReLU was active, zero it out elsewhere.
+
+% ---------------------------------------------------------------
+\section{Training in Practice}
+% ---------------------------------------------------------------
+
+\subsection{Interpreting the Loss Curve}
+
+A healthy training run over 60 epochs on MNIST shows loss decreasing steeply at first,
+then leveling off near 0. Key sanity checks:
+
+\begin{itemize}
+  \item \textbf{Loss should decrease.} If it increases or overflows your floats, you likely have a bug in your gradient computation.
+  \item \textbf{Loss and accuracy should correlate.} Decreasing cross-entropy loss should correspond to improving classification accuracy.
+  \item \textbf{Test accuracy matters.} If training loss goes down but test accuracy does not improve, you are overfitting.
+\end{itemize}
+
+\begin{notebox}
+\textbf{Debugging Tip:} Float overflow (NaN loss) is almost always caused by an incorrect
+gradient --- often a sign error or missing the $\frac{1}{n}$ normalization factor. Check your
+$\nabla_{Z3}\mathcal{L}$ computation first.
+\end{notebox}
+
+% ---------------------------------------------------------------
+\section{Summary and Key Takeaways}
+% ---------------------------------------------------------------
+
+\begin{takeawaybox}
+\textbf{Key Takeaways from Lecture 10}
+
+\begin{enumerate}
+  \item \textbf{Neural networks overcome linearity} by composing linear layers with non-linear activation functions, enabling them to model arbitrarily complex functions.
+
+  \item \textbf{Universal Approximation (1989):} A single hidden layer of sufficient width can approximate any continuous function. In practice, depth beats width.
+
+  \item \textbf{The forward pass} computes predictions; the \textbf{backward pass (backprop)} computes gradients of the loss w.r.t.\ every parameter via the chain rule.
+
+  \item \textbf{ReLU is the default activation} for hidden layers: cheap, non-saturating, and empirically effective. Sigmoid/Softmax are reserved for output layers.
+
+  \item \textbf{Batch processing} allows efficient matrix operations. The batch size is a hyperparameter balancing speed and gradient quality.
+
+  \item \textbf{Three gradients per fully-connected layer:}
+  \begin{itemize}
+    \item $\nabla_W \mathcal{L} = Z_{\text{in}}^T [\nabla_{Z_{\text{out}}} \mathcal{L}]$ (update weights)
+    \item $\nabla_{\vec{b}} \mathcal{L} = $ column sum of $\nabla_{Z_{\text{out}}} \mathcal{L}$ (update biases)
+    \item $\nabla_{Z_{\text{in}}} \mathcal{L} = [\nabla_{Z_{\text{out}}} \mathcal{L}] W^T$ (propagate upstream)
+  \end{itemize}
+
+  \item \textbf{ReLU gradient} is a mask: pass through gradient where input was positive, zero otherwise.
+\end{enumerate}
+\end{takeawaybox}
+
+\subsection{Further Resources}
+
+\begin{itemize}
+  \item \textbf{Reading:} Sections 22.1 -- 22.2.3 of the course textbook
+  \item \textbf{Videos:} \textit{Neural Networks} series by 3Blue1Brown (highly recommended for visual intuition on backpropagation)
+  \item \textbf{Slides:} by Aaron Hillegass, Georgia Tech
+\end{itemize}
+
+\end{document}
