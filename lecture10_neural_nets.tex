@@ -192,7 +192,7 @@ Leaky-ReLU was designed to address this.
 \tanh(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}}, \qquad \tanh'(x) = 1 - \tanh^2(x)
 \]
 Outputs in $(-1, 1)$; zero-centered (often better than sigmoid for hidden layers).
-
+\newline
 \textbf{Leaky-ReLU:}
 \[
 \text{leaky-relu}(x) = \max(\alpha x,\, x), \quad \alpha > 0 \text{ (very small)}
@@ -201,7 +201,7 @@ Outputs in $(-1, 1)$; zero-centered (often better than sigmoid for hidden layers
 \text{leaky-relu}'(x) = \begin{cases} \alpha & \text{if } x < 0 \\ 1 & \text{if } x > 0 \end{cases}
 \]
 Prevents dying neurons by allowing a small gradient for negative inputs.
-
+\newline
 \textbf{Swish:}
 \[
 \text{swish}(x) = x \cdot \sigma(x), \qquad \text{swish}'(x) = \text{swish}(x) + \sigma(x)(1 - \text{swish}(x))
