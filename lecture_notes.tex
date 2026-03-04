@@ -1,0 +1,760 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\setlength{\headheight}{14pt}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+% Code styling
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{olive},
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  language=Python
+}
+
+% Headers
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{CS 3600: Introduction to Artificial Intelligence}
+\rhead{Georgia Tech}
+\cfoot{\thepage}
+
+\titleformat{\section}{\large\bfseries}{Lecture \thesection:}{0.5em}{}[\vspace{-0.3em}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.5em}{}
+
+\title{\textbf{CS 3600: Introduction to Artificial Intelligence}\\[0.5em]
+\large Lecture Notes\\[0.3em]
+\normalsize Aaron Hillegass --- Georgia Tech}
+\date{}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Probability for AI}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Motivation}
+Robust AI systems must handle \textbf{uncertainty}. There are two interpretations:
+\begin{itemize}
+  \item \textbf{Expectation}: ``If I make this move, 10\% of the time I win \$110.''
+  \item \textbf{Certainty}: ``I'm 42\% certain that is a human in the road.''
+\end{itemize}
+Systems with no room for uncertainty are fragile. Probability is the primary tool.
+
+\subsection{Probability Basics}
+A probability model has three parts:
+\begin{enumerate}
+  \item \textbf{Sample space} $\Omega$: all possible outcomes.
+  \item \textbf{Event} $H$: any subset of $\Omega$.
+  \item \textbf{Probability} $P(H) \in \mathbb{R}$, where $P(H)=0$ is impossible, $P(H)=1$ is certain.
+\end{enumerate}
+
+\textbf{Axioms of Probability:}
+\begin{enumerate}
+  \item Non-negativity: $P(H) \geq 0$.
+  \item Normalization: $P(\Omega) = 1$.
+  \item Additivity: If events $H_i$ are disjoint, $P\!\left(\bigcup_i H_i\right) = \sum_i P(H_i)$.
+\end{enumerate}
+
+\subsection{Joint, Marginal, and Conditional Probability}
+
+\textbf{Joint probability distribution} $P(X, Y)$ gives the probability over all combinations of two random variables.
+
+\textbf{Marginal distribution}: Sum over all values of one variable to ``ignore'' it:
+\[
+  P(X = x) = \sum_{y \in Y} P(X = x, Y = y)
+\]
+
+\textbf{Conditional probability}:
+\[
+  P(Y = y \mid X = x) = \frac{P(Y = y,\, X = x)}{P(X = x)}
+\]
+
+\subsection{Chain Rule for Probability}
+\[
+  P(X, Y, Z) = P(X)\,P(Y \mid X)\,P(Z \mid X, Y)
+\]
+This generalizes to any number of variables. It is the fundamental rule underlying modern AI.
+
+\subsection{Independence}
+$X$ and $Y$ are \textbf{independent} iff:
+\[
+  P(X=x, Y=y) = P(X=x)\,P(Y=y) \quad \forall\, x, y
+\]
+Equivalently, $P(X=x \mid Y=y) = P(X=x)$ for all $x, y$.
+
+\subsection{Bayes' Law}
+Bayes' Law relates the \textbf{posterior}, \textbf{likelihood}, and \textbf{prior}:
+\[
+  P(A=a \mid B=b) = \frac{P(B=b \mid A=a)\,P(A=a)}{P(B=b)}
+\]
+The denominator can be expanded: $P(B=b) = \sum_{a^*} P(B=b \mid A=a^*)\,P(A=a^*)$.
+
+Compact form: \textbf{posterior} $\propto$ \textbf{likelihood} $\times$ \textbf{prior}.
+
+\textit{Example (medical test)}: Disease prevalence = 0.1\%. Test false positive rate = 1\%, false negative = 0.5\%. A positive result means only $\approx 9\%$ chance of actually having the disease. The prior (rare disease) dominates.
+
+\subsection{Continuous Random Variables}
+
+For continuous variables, replace probability mass functions with \textbf{probability density functions} (PDFs) $p(x)$, satisfying:
+\[
+  p(x) \geq 0, \quad \int_{-\infty}^{\infty} p(x)\,dx = 1
+\]
+\textbf{Key statistics}:
+\[
+  \mu = E[X] = \int x\,p(x)\,dx, \quad
+  \text{Var}(X) = \int (x-\mu)^2 p(x)\,dx
+\]
+Mean = center of mass; Mode = peak of curve; Median = divides area equally.
+
+\textbf{Normal (Gaussian) distribution}:
+\[
+  p(x) = \frac{1}{\sqrt{2\pi\sigma^2}}\,\exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)
+\]
+where $\mu$ is the mean and $\sigma^2$ is the variance.
+
+\subsection{Working in Log Space}
+Long products of small probabilities underflow. Use log space:
+\[
+  \log p(x_1, x_2, \ldots) = \log p(x_1) + \log p(x_2) + \cdots
+\]
+To normalize, add a constant $c = -\max(\log a, \log b)$ before exponentiating to avoid numerical issues.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Bayes' Rule with Continuous Random Variables}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Continuous Bayes}
+When the unknown quantity is a real-valued parameter $\lambda$ (the ``box''), Bayes' rule becomes:
+\[
+  p(\lambda \mid \text{data}) \propto p(\text{data} \mid \lambda)\,p(\lambda),
+  \quad \int p(\lambda \mid \text{data})\,d\lambda = 1
+\]
+\begin{itemize}
+  \item $p(\lambda)$: \textbf{prior} -- belief before seeing data
+  \item $p(\text{data} \mid \lambda)$: \textbf{likelihood} -- probability of the data given $\lambda$
+  \item $p(\lambda \mid \text{data})$: \textbf{posterior} -- updated belief
+\end{itemize}
+
+\subsection{Exponential Distribution}
+For times between events: $T \sim \text{Exponential}(\lambda)$, where $\lambda$ is the rate.
+\[
+  P(T \leq t) = 1 - e^{-\lambda t}, \quad p(T=t) = \lambda e^{-\lambda t}
+\]
+\textit{Example}: Estimating coffee-shop arrival rate $\lambda$ from observed inter-arrival times.
+
+\subsection{Credible Intervals}
+A $\gamma$-\textbf{credible interval} contains $\gamma$ of the posterior's probability mass. Start at the MAP (maximum a posteriori) estimate and expand left/right until $\gamma$ is captured.
+
+\subsection{Three Approaches to Continuous Posteriors}
+
+\begin{enumerate}
+  \item \textbf{Symbolic / Conjugate Priors}: Some prior--likelihood pairs yield closed-form posteriors.
+    \begin{itemize}
+      \item Gamma prior + exponential likelihood $\Rightarrow$ Gamma posterior.
+      \item Beta prior + Binomial likelihood $\Rightarrow$ Beta posterior.
+    \end{itemize}
+  \item \textbf{Numerical (Grid)}: Evaluate prior $\times$ likelihood on a grid, then normalize via numerical integration.
+    \begin{lstlisting}
+z = sum(posterior_unnorm) * delta
+posterior = posterior_unnorm / z
+    \end{lstlisting}
+  \item \textbf{MCMC (Markov Chain Monte Carlo)}: For high-dimensional posteriors, use sampling methods such as NUTS via \texttt{NumPyro}.
+    \begin{lstlisting}
+import numpyro
+from numpyro.infer import MCMC, NUTS
+def model(asked, supporters):
+    r = numpyro.sample("r", dist.Uniform(0, 1))
+    numpyro.sample("obs", dist.Binomial(asked, r), obs=supporters)
+    \end{lstlisting}
+\end{enumerate}
+
+\subsection{Binomial Example: Polling}
+\[
+  P(k) = \binom{n}{k} r^k (1-r)^{n-k}
+\]
+Start with a Beta prior on $r$ (e.g., $r \sim \text{Beta}(800, 200)$ if historically ~80\% support). After polling $n$ people and seeing $k$ supporters, the posterior is $\text{Beta}(800+k, 200+n-k)$. Repeated polls with $\sim30\%$ support eventually overwhelm the strong prior.
+
+\textbf{Impact of Priors}:
+\begin{itemize}
+  \item Good priors speed convergence when data is limited.
+  \item Bad priors can be overcome by enough data (as long as no event has prior probability exactly 0).
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Bayesian Networks}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Motivation: Modeling Dependencies}
+Multiple variables can be related. Naive joint tables grow exponentially. Bayesian Networks encode conditional independence assumptions compactly.
+
+\subsection{Structure of a Bayesian Network}
+A Bayes Net is a \textbf{directed acyclic graph (DAG)} where:
+\begin{itemize}
+  \item Each node is a random variable.
+  \item Each node has a \textbf{conditional probability table (CPT)} conditioned on its parents.
+  \item The joint distribution factors as:
+  \[
+    P(X_1, \ldots, X_n) = \prod_{i} P(X_i \mid \text{parents}(X_i))
+  \]
+\end{itemize}
+
+\subsection{Conditional Independence}
+$W$ and $R$ are \textbf{conditionally independent given} $A$ if:
+\[
+  P(W \mid A, R) = P(W \mid A) \quad \text{(written } W \perp\!\!\!\perp R \mid A\text{)}
+\]
+The graph encodes exactly which independences hold.
+
+\subsection{Information Flow: Three Structures}
+
+\begin{description}
+  \item[Pipe (Chain) $A \to B \to C$:] Information flows along the pipe unless $B$ is observed.
+  \item[Fork $A \leftarrow B \rightarrow C$:] $A$ and $C$ are marginally dependent but independent given $B$.
+  \item[Collider $A \rightarrow C \leftarrow B$:] $A$ and $B$ are marginally independent; observing $C$ \emph{creates} dependence (``explaining away'').
+\end{description}
+
+\subsection{Inference in Bayes Nets}
+Given observations, update beliefs using Bayes' rule:
+\[
+  P(\text{query} \mid \text{evidence}) \propto P(\text{evidence} \mid \text{query})\,P(\text{query})
+\]
+
+\textbf{Methods for exact inference}: Variable elimination, clique tree propagation.\\
+\textbf{Approximate inference}: Sampling, loopy belief propagation.\\
+\textbf{Pruning}: d-separation, Markov blankets.
+
+\subsection{Continuous Variables in Bayes Nets}
+CPTs are replaced by conditional probability distributions (e.g., Gaussians whose parameters depend on parent values).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Bayesian and Naive Bayes Classifiers}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Classification via Bayes' Rule}
+Given observations (features) $\mathbf{x}$, predict class $C$:
+\[
+  P(C \mid \mathbf{x}) \propto P(\mathbf{x} \mid C)\,P(C)
+\]
+Normalize over all classes to get a proper distribution; predict the class with highest posterior.
+
+\subsection{Naive Bayes Classifier}
+\textbf{Assumption}: Features are conditionally independent given the class.
+\[
+  P(x_1, \ldots, x_d \mid C) = \prod_{j=1}^d P(x_j \mid C)
+\]
+This is a ``lie'' in practice (features are often correlated), but classifiers work well anyway.
+
+\textbf{Steps}:
+\begin{enumerate}
+  \item Estimate \textbf{priors} $P(C)$ by counting class frequencies.
+  \item For each feature and class, fit a distribution (e.g., Gaussian) and compute likelihood.
+  \item Multiply likelihoods for joint likelihood; multiply by prior for unnormalized posterior.
+  \item Normalize and predict the highest-probability class.
+\end{enumerate}
+
+\subsection{Multivariate Gaussian Classifier}
+To model correlated features, use the \textbf{multivariate Gaussian}:
+\[
+  p(\mathbf{x}) = \frac{1}{\sqrt{(2\pi)^d \det(\Sigma)}}\,\exp\!\left(-\tfrac{1}{2}(\mathbf{x}-\boldsymbol{\mu})^T \Sigma^{-1} (\mathbf{x}-\boldsymbol{\mu})\right)
+\]
+Parameter estimation from $n$ labeled samples:
+\[
+  \boldsymbol{\mu} = \frac{1}{n}\sum_{i=1}^n \mathbf{x}_i, \quad
+  \Sigma = \frac{1}{n}\sum_{i=1}^n (\mathbf{x}_i - \boldsymbol{\mu})(\mathbf{x}_i - \boldsymbol{\mu})^T
+\]
+The covariance matrix $\Sigma$ is symmetric; off-diagonal entries capture correlations between features.
+
+\subsection{Conditional Distribution of a Multivariate Gaussian}
+Given $\mathbf{x} = (x_1, x_2)^T \sim \mathcal{N}(\boldsymbol{\mu}, \Sigma)$ and observing $x_2$:
+\[
+  \mu_{1|2} = \mu_1 + \Sigma_{12}\Sigma_{22}^{-1}(x_2 - \mu_2), \quad
+  \Sigma_{1|2} = \Sigma_{11} - \Sigma_{12}\Sigma_{22}^{-1}\Sigma_{21}
+\]
+
+\subsection{Parameterless Density Estimation}
+When data doesn't fit a known distribution, use \textbf{Kernel Density Estimation (KDE)}:
+\begin{lstlisting}
+from scipy.stats import gaussian_kde
+density = gaussian_kde(data)
+print(density(6.0))   # density at point 6.0
+\end{lstlisting}
+
+\subsection{Summary of Classifier Types}
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  Method & Joint Likelihood Computation \\
+  \midrule
+  Naive Bayes & Product of univariate distributions (independence assumed) \\
+  True Bayes (parametric) & Multivariate distribution (e.g., multivariate Gaussian) \\
+  True Bayes (nonparametric) & Kernel density estimator \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Markov Chains and Hidden Markov Models}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Markov Chains}
+A \textbf{Markov chain} models a sequence of random variables $X_0, X_1, X_2, \ldots$ with the \textbf{Markov assumption}:
+\[
+  X_{i+1} \perp\!\!\!\perp X_j \mid X_i \quad \forall j < i
+\]
+So: $P(X_0, X_1, \ldots, X_n) = P(X_0)\prod_{t=1}^n P(X_t \mid X_{t-1})$
+
+Defined by:
+\begin{itemize}
+  \item \textbf{Initial distribution} $\pi = P(X_0)$
+  \item \textbf{Transition matrix} $T$ where $T_{ij} = P(X_t = j \mid X_{t-1} = i)$
+\end{itemize}
+
+\subsection{Mini-Forward Algorithm}
+To propagate the distribution forward one step:
+\[
+  P(X_t) = P(X_{t-1})\,T
+\]
+
+\subsection{Stationary Distribution}
+As $t \to \infty$, an \textbf{ergodic} chain converges to a unique stationary distribution $\pi_\infty$ satisfying:
+\[
+  \pi_\infty = \pi_\infty T
+\]
+$\pi_\infty$ is the left eigenvector of $T$ with eigenvalue 1. Compute in Python:
+\begin{lstlisting}
+vals, vecs = jnp.linalg.eig(T.T)
+idx = jnp.argmin(jnp.abs(vals - 1.0))
+pi = vecs[:, idx].real
+pi = pi / pi.sum()
+\end{lstlisting}
+
+\subsection{Hidden Markov Models (HMMs)}
+HMMs extend Markov chains with \textbf{emissions}: at each time step, an observation $Y_t$ is generated from the hidden state $X_t$.
+\begin{itemize}
+  \item $\pi$: initial state distribution
+  \item $T$: transition matrix
+  \item $E_{i,j}$: emission matrix, $P(Y_t = j \mid X_t = i)$
+  \item $X_t$ is \textbf{unobserved}; only $Y_t$ is seen
+\end{itemize}
+
+\subsection{Key HMM Algorithms}
+
+\begin{description}
+  \item[Filtering (Forward Algorithm):] Given $\pi, T, E$ and observations $y_1, \ldots, y_t$, compute $P(X_t \mid y_1, \ldots, y_t)$.
+  \item[Smoothing (Forward-Backward):] Compute $P(X_k \mid y_1, \ldots, y_t)$ for $k < t$.
+  \item[Decoding (Viterbi):] Find the most likely state sequence $\hat{x}_1, \ldots, \hat{x}_t$ given observations. Uses dynamic programming with matrices $J$ (max-probability) and $Q$ (backpointer):
+    \begin{align*}
+      J_{x,0} &= \pi_x \cdot E_{x,y_0} \\
+      J_{x,t} &= \max_{x'} J_{x',t-1} \cdot T_{x'x} \cdot E_{x,y_t}
+    \end{align*}
+    Trace back using $Q$ to recover the optimal path.
+  \item[Learning (Baum-Welch):] Estimate $\pi, T, E$ from unlabeled observations (EM algorithm).
+\end{description}
+
+\subsection{Application: Speech Recognition}
+\begin{itemize}
+  \item \textbf{Training}: Convert audio to Mel spectrogram frames, quantize, use Baum-Welch to learn $\pi_w, T_w, E_w$ for each word $w$.
+  \item \textbf{Decoding}: Quantize new audio, use Viterbi + language model prior to select most likely word.
+\end{itemize}
+
+\subsection{Google PageRank}
+A Markov chain over web pages: with probability $c$ jump to a random page; with probability $1-c$ follow a random link. The stationary distribution gives page rankings.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Kalman Filters and Particle Filters}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The Localization Problem}
+Robots must estimate position $(x, y, \theta)$ from noisy sensors and noisy actuators. Two elegant solutions: \textbf{Particle Filters} (nonparametric) and \textbf{Kalman Filters} (parametric, linear-Gaussian).
+
+\subsection{Particle Filters}
+Represent the belief state as a set of $n$ weighted samples (``particles''):
+
+\begin{enumerate}
+  \item \textbf{Initialize}: Sample $n$ particles $\{(x_i, y_i, \theta_i)\}$ uniformly over the map.
+  \item \textbf{Observe}: Get sensor measurements.
+  \item \textbf{Weight}: Compute likelihood $w_i = P(\text{measurements} \mid \text{particle}_i)$.
+  \item \textbf{Resample}: Draw $n$ new particles with replacement, weighted by $w_i$. Unlikely particles are culled; likely ones multiply.
+  \item \textbf{Roughen}: Add noise to particles to avoid degeneracy.
+  \item \textbf{Act}: Simulate the action on all particles.
+  \item Repeat from step 2.
+\end{enumerate}
+Sensor noise modeled as a Gaussian: if predicted distance is $d$ and measured is $d'$, likelihood $\propto \mathcal{N}(d' - d;\, 0,\, \sigma^2)$.
+
+\subsection{Kalman Filters}
+Developed by Rudolf Kálmán (1960); used in Apollo missions and all modern aerospace.
+
+\textbf{State model} (linear system with Gaussian noise):
+\[
+  \mathbf{x}_t = \mathbf{F}\,\mathbf{x}_{t-1} + \mathbf{B}\,\mathbf{u}_{t-1} + \mathbf{w}, \quad \mathbf{w} \sim \mathcal{N}(0, \mathbf{Q})
+\]
+\textbf{Observation model}:
+\[
+  \mathbf{z}_t = \mathbf{H}\,\mathbf{x}_t + \mathbf{v}, \quad \mathbf{v} \sim \mathcal{N}(0, \mathbf{R})
+\]
+
+\textbf{Matrices}:
+\begin{itemize}
+  \item $\mathbf{F}$: state transition (physics)
+  \item $\mathbf{B}$: control input effect
+  \item $\mathbf{Q}$: process noise covariance
+  \item $\mathbf{H}$: observation model (maps state to sensor space)
+  \item $\mathbf{R}$: sensor noise covariance
+\end{itemize}
+
+\subsection{Kalman Filter Loop}
+
+\begin{enumerate}
+  \item \textbf{Predict state and error covariance}:
+    \[
+      \hat{\mathbf{x}}_t = \mathbf{F}\hat{\mathbf{x}}_{t-1} + \mathbf{B}\mathbf{u}_{t-1}, \quad
+      \mathbf{P}_t = \mathbf{F}\mathbf{P}_{t-1}\mathbf{F}^T + \mathbf{Q}
+    \]
+  \item \textbf{Compute residual}: $\tilde{\mathbf{y}} = \mathbf{z}_t - \mathbf{H}\hat{\mathbf{x}}_t$
+  \item \textbf{Compute Kalman Gain}:
+    \[
+      \mathbf{S} = \mathbf{H}\mathbf{P}_t\mathbf{H}^T + \mathbf{R}, \quad \mathbf{K} = \mathbf{P}_t\mathbf{H}^T\mathbf{S}^{-1}
+    \]
+    $\mathbf{K}$ entries near 1 = trust sensor; near 0 = trust prediction.
+  \item \textbf{Update state and covariance}:
+    \[
+      \hat{\mathbf{x}}_t \leftarrow \hat{\mathbf{x}}_t + \mathbf{K}\tilde{\mathbf{y}}, \quad
+      \mathbf{P}_t \leftarrow (\mathbf{I} - \mathbf{K}\mathbf{H})\mathbf{P}_t
+    \]
+\end{enumerate}
+
+\textbf{Extensions}: Extended Kalman Filter (EKF) for differentiable nonlinear $f, h$; Unscented Kalman Filter (UKF) for highly nonlinear systems.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Intro to ML, K-Nearest Neighbors, and Decision Trees}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Flavors of Machine Learning}
+\begin{description}
+  \item[Supervised] Labeled data. \textit{Classification} (discrete output) or \textit{Regression} (continuous output).
+  \item[Unsupervised] No labels. \textit{Clustering}.
+  \item[Self-Supervised / Generative] Learning structure from unlabeled data; generate new examples.
+\end{description}
+
+\subsection{ML Workflow}
+\begin{enumerate}
+  \item Define the goal.
+  \item Gather and label data. Split into \textbf{train} and \textbf{test} sets.
+  \item Choose a model and hyperparameters.
+  \item Train on training set.
+  \item Evaluate on test set.
+  \item Deploy.
+\end{enumerate}
+
+\textbf{Diagnosing problems}:
+\begin{itemize}
+  \item Good train, bad test $\Rightarrow$ \textbf{overfitting} (high variance).
+  \item Bad train, bad test $\Rightarrow$ \textbf{underfitting} (high bias).
+\end{itemize}
+
+\subsection{K-Nearest Neighbors (kNN)}
+\textbf{1-NN}: Find the single closest training point; return its label. Generalization: find the $k$ closest points and take a majority vote.
+
+\textbf{Common distance metrics}:
+\[
+  d_2(\mathbf{a}, \mathbf{c}) = \sqrt{\sum_i (a_i - c_i)^2} \quad \text{(Euclidean)}
+\]
+\[
+  d_1(\mathbf{a}, \mathbf{c}) = \sum_i |a_i - c_i| \quad \text{(Manhattan)}
+\]
+In high dimensions both are poorly behaved; prefer \textbf{cosine similarity}:
+\[
+  \text{sim}(\mathbf{a}, \mathbf{c}) = \frac{\mathbf{a} \cdot \mathbf{c}}{|\mathbf{a}||\mathbf{c}|}
+\]
+
+\textbf{Hyperparameters}: $k$, distance metric, weighting function.
+
+\subsection{Validation and Cross-Validation}
+Hold out a \textbf{validation set} to tune hyperparameters. Use \textbf{$n$-fold cross-validation}: partition training data into $n$ folds; train on $n-1$ and validate on 1; rotate and average accuracy.
+
+\subsection{Common Problems and Fixes}
+
+\begin{description}
+  \item[Different scales] Standardize: $z = (x - \mu)/\sigma$.
+  \item[Garbage features] Feature selection; remove uncorrelated features.
+  \item[Unbalanced samples] Resample or reweight classes.
+  \item[Slow / bloated] Use \textbf{Approximate Nearest Neighbor} (ANN) libraries: FAISS, ScaNN, Annoy.
+\end{description}
+
+\subsection{Decision Trees}
+Split the feature space recursively to minimize \textbf{impurity}. At each node, choose the feature and threshold that best separates classes.
+
+\textbf{Gini Impurity} for a node with class proportions $p_k$:
+\[
+  G = 1 - \sum_k p_k^2
+\]
+Alternative criteria: Entropy, Log Loss (all behave similarly; Gini is fastest).
+
+\textbf{Splitting continuous features}: Try all midpoints between adjacent sorted values; pick the one with best impurity reduction.
+
+\textbf{Hyperparameter tuning}: \texttt{max\_depth}, \texttt{min\_samples\_split}, \texttt{max\_leaf\_nodes} — pruning prevents overfitting.
+
+\subsection{Ensemble Methods}
+
+\textbf{Random Forest}: Train $\sim$1000 trees, each on a random subset of $\sqrt{d}$ features and a bootstrap sample. Aggregate predictions by majority vote (classification) or average (regression).
+
+\textbf{Gradient Boosted Trees} (e.g., XGBoost): Build trees sequentially; each new tree corrects the residual errors of the combined ensemble.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Lectures 8, 9, 10 already written -- omitted here
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Convolutional Neural Networks and Flax NNX}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Motivation: Fully-Connected Layers Don't Scale}
+A 1080p image has $1920 \times 1080 \times 3 \approx 6.2\text{M}$ inputs. A single FC layer with 1000 units needs $\sim 6.2\text{B}$ parameters. This is infeasible.
+
+\subsection{1D and 2D Convolution}
+A \textbf{convolution} slides a small \textbf{kernel} over the input, computing a dot product at each location:
+\[
+  (\text{output})_{i,j} = \sum_{m,n} \text{kernel}_{m,n} \cdot \text{input}_{i+m,\, j+n}
+\]
+\textbf{Zero-padding} keeps spatial dimensions constant. \textbf{Stride} $S$ subsamples the output.
+
+\textbf{Output size} with input $W$, kernel $K$, stride $S$, padding $P$:
+\[
+  \text{out} = \left\lfloor \frac{W - K + 2P}{S} \right\rfloor + 1
+\]
+
+A color image has 3 channels; a kernel has shape $(\text{in\_channels}, H, W)$. Multiple kernels produce multiple output channels (feature maps) with very few parameters compared to fully connected.
+
+\subsection{Dimension Reduction}
+
+\begin{description}
+  \item[Stride $> 1$:] Every $S$-th position is kept, reducing spatial size.
+  \item[Max Pooling:] Divide into non-overlapping windows; keep the maximum in each. Reduces size by pool factor per channel independently.
+\end{description}
+Standard order: \textbf{Convolution $\to$ ReLU $\to$ Max Pool}.
+
+\subsection{Typical CNN Architecture}
+\[
+  \underbrace{\text{Conv-ReLU-Pool}}_{\text{tall, wide, thin}} \longrightarrow \cdots \longrightarrow \underbrace{\text{Flatten}}_{\text{1D}} \longrightarrow \underbrace{\text{FC-Softmax}}_{\text{classification}}
+\]
+
+\subsection{Flax NNX Code}
+\begin{lstlisting}
+from flax import nnx
+import optax
+
+class MNISTModel(nnx.Module):
+    def __init__(self, *, rngs):
+        self.fc1 = nnx.Linear(784, 128, rngs=rngs)
+        self.fc2 = nnx.Linear(128, 10, rngs=rngs)
+    def __call__(self, x):
+        return nnx.softmax(self.fc2(nnx.relu(self.fc1(x))))
+
+model = MNISTModel(rngs=nnx.Rngs(0))
+optimizer = nnx.Optimizer(model, optax.adamw(1e-3), wrt=nnx.Param)
+
+@nnx.jit
+def loss_fn(model, X, y):
+    return optax.softmax_cross_entropy_with_integer_labels(
+        logits=model(X), labels=y).mean()
+
+grad_fn = nnx.value_and_grad(loss_fn)
+for epoch in range(EPOCHS):
+    loss, grads = grad_fn(model, batch_X, batch_y)
+    optimizer.update(model, grads)
+\end{lstlisting}
+
+\subsection{JAX Ecosystem}
+\begin{itemize}
+  \item \textbf{JAX}: NumPy + autodiff + JIT compilation.
+  \item \textbf{Flax NNX}: Neural network layers.
+  \item \textbf{Optax}: Optimizers (Adam, AdamW, SGD, etc.).
+  \item Used by Anthropic, DeepMind, Midjourney, and others.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Deep Learning}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Challenges in Deep Networks}
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  Problem & Solution \\
+  \midrule
+  Overfitting & Data augmentation, Dropout \\
+  Vanishing / Exploding gradients & Batch normalization, Residual connections \\
+  Information loss & Residual / skip connections \\
+  Slow training & Transfer learning, better optimizers \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Data Augmentation}
+Artificially expand limited training datasets by applying random transformations: flips, rotations, crops, color jitter. Forces the model to learn invariant features.
+
+\subsection{Dropout}
+During training, randomly zero out a fraction $p$ of activations. Non-zeroed outputs are scaled by $\frac{1}{1-p}$ to maintain expected value. At inference, dropout is disabled.
+\begin{lstlisting}
+m = nn.Dropout(p=0.2)
+\end{lstlisting}
+Prevents co-adaptation of neurons; acts as implicit model averaging.
+
+\subsection{Batch Normalization}
+For an input batch with $m$ samples and dimension $d$, normalize each feature $k$:
+\[
+  \hat{x}_i^k = \frac{x_i^k - \mu^k}{\sigma^k}, \quad y_i^k = g^k \hat{x}_i^k + b^k
+\]
+where $g^k$ and $b^k$ are learned parameters. Applied after each layer to counteract distributional shift from nonlinearities.
+
+\subsection{Residual Connections}
+Introduced in ResNet (2015, won ImageNet):
+\[
+  \text{output} = F(\mathbf{x}) + \mathbf{x}
+\]
+Skip connections bypass layers, providing identity gradients that prevent vanishing gradient and preserve high-frequency information. Present in all Transformers.
+
+\textbf{DenseNets}: Instead of adding, concatenate feature maps from all previous layers.
+
+\subsection{Transfer Learning}
+Start from a large pre-trained model. Fine-tune only the final classification layers:
+\begin{lstlisting}
+classifier_params = nnx.All(nnx.Param,
+    nnx.PathContains('classifier'))
+optimizer = nnx.Optimizer(model, optax.adamw(3e-4),
+    wrt=classifier_params)
+\end{lstlisting}
+Pre-trained feature extractors generalize well; only the task-specific head needs retraining.
+
+\subsection{Ethics of Deep Learning}
+Key concerns: computers impersonating people, job displacement, wealth concentration, bias, overselling capabilities, energy consumption, hardware supply chains, privacy.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Recurrent Neural Networks}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Variable-Length Sequences}
+Standard MLPs and CNNs have fixed input/output sizes. Sequences (text, time series, audio) have variable length. Solution: \textbf{Recurrent Neural Networks (RNNs)}.
+
+\subsection{Tokenization and Embeddings}
+Words are first mapped to tokens (integers), then to dense vectors via an \textbf{embedding layer}.
+\begin{itemize}
+  \item \textbf{Word2Vec} (2013): 100--300-dimensional embeddings; synonyms cluster together.
+  \item Modern models use learned subword tokenizers (e.g., BPE with $\sim$100K vocab in GPT-4).
+\end{itemize}
+
+\subsection{RNN Architecture}
+An RNN processes one element at a time, maintaining a \textbf{hidden state} passed from step to step:
+\[
+  h_t = f(W_h h_{t-1} + W_x x_t + b)
+\]
+Effectively an extremely deep network when ``unrolled'' over time. Trained with \textbf{Backpropagation Through Time (BPTT)}.
+
+\subsection{Common RNN Configurations}
+\begin{description}
+  \item[Many-to-one:] Sentiment classification (sequence $\to$ label).
+  \item[One-to-many:] Image captioning (vector $\to$ sequence).
+  \item[Many-to-many (same length):] Per-step stock prediction.
+  \item[Many-to-many (different length):] Machine translation (encoder-decoder).
+\end{description}
+
+\subsection{LSTM and GRU}
+Plain RNNs suffer from vanishing/exploding gradients over long sequences. \textbf{Long Short-Term Memory (LSTM)} and \textbf{Gated Recurrent Unit (GRU)} address this with \textbf{gating mechanisms} that control information flow rather than multiplying through many layers.
+\begin{itemize}
+  \item LSTM maintains a \textbf{cell state} $c_t$ (long-term memory) and a hidden state $h_t$ (short-term).
+  \item Gates: forget, input, output; each is a sigmoid applied to a linear combination.
+\end{itemize}
+
+\begin{lstlisting}
+from flax.nnx.nn.recurrent import RNN, LSTMCell
+c = LSTMCell(in_features=100, hidden_features=30, rngs=rngs)
+self.rnn = RNN(c)
+\end{lstlisting}
+
+\subsection{Attention and Transformers}
+RNNs still lose information over long sequences (the ``telephone game''). The \textbf{Transformer} architecture (Vaswani et al., 2017, ``Attention Is All You Need'') introduced \textbf{self-attention}, allowing every position to directly attend to every other position. This has become the dominant architecture for NLP (GPT, BERT) and is being applied across modalities.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{State/Action Search}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Problem Formulation}
+A search problem is defined by:
+\begin{itemize}
+  \item Initial state $s_0$
+  \item Goal test: $\text{Goal}(s) \to \text{bool}$
+  \item Action set: $A(s)$ = available actions in state $s$
+  \item Transition function: $T(a, s) \to s'$
+\end{itemize}
+The \textbf{state space} is all reachable states. Two key questions: Does a solution exist? What is the shortest solution?
+
+\subsection{Breadth-First Search (BFS)}
+Uses a FIFO queue. Explores all nodes at depth $d$ before depth $d+1$.
+
+\textbf{Properties}:
+\begin{itemize}
+  \item Complete: Yes (finds solution if one exists).
+  \item Optimal: Yes (fewest steps).
+  \item Time and space: $O(b^x)$ where $b$ = branching factor, $x$ = depth of shallowest solution.
+\end{itemize}
+
+\textbf{Check-before-push} optimization: check the goal when pushing children, not when popping, to save one full level of memory.
+
+\textbf{Handling graphs} (cycles): Maintain a \textbf{backtracking table} (map from state to parent action and state). Serves dual purpose: cycle detection and path reconstruction.
+
+\begin{lstlisting}[language=Python]
+q = Queue(); bt = {}
+q.push(s0); bt[s0] = (None, None)
+while q:
+    s = q.pop()
+    for a in A(s):
+        s2 = T(a, s)
+        if s2 in bt: continue
+        bt[s2] = (a, s)
+        if Goal(s2): return backtrack(s0, s2, bt)
+        q.push(s2)
+\end{lstlisting}
+
+\textbf{BFS invariant}: When the node at the front of the queue is $n$ steps from $s_0$, every state within $n$ steps is already in the backtracking table.
+
+\subsection{Depth-First Search (DFS)}
+Uses a LIFO stack.
+\begin{itemize}
+  \item \textbf{Not} guaranteed to find shortest path.
+  \item May not terminate on infinite trees.
+  \item Space: $O(mb)$ where $m$ = depth limit --- much better than BFS.
+\end{itemize}
+
+\subsection{Iterative Deepening Depth-First Search (IDDFS)}
+Run DFS with depth limits $1, 2, 3, \ldots$ until a solution is found. Achieves BFS-optimal solution with DFS-level $O(mb)$ space. Less wasteful than it appears; the last level dominates cost.
+
+\subsection{Best-First (Greedy) Search}
+Uses a priority queue ordered by a heuristic $h(s) \approx$ estimated distance to goal. Finds solutions much faster in practice but is not guaranteed to be optimal.
+
+\subsection{Bidirectional BFS}
+Search simultaneously from the initial state (forward) and goal state (backward). Meet in the middle.
+\begin{itemize}
+  \item Naive version: Stop when the two frontiers meet. \textbf{Problem}: may not find the shortest path at first contact.
+  \item \textbf{Correct termination}: Let $\mu$ = length of best solution found so far, $n_f$ = depth of forward frontier, $n_b$ = depth of backward frontier. Stop when $n_f + n_b \geq \mu$. Complexity: $O(b^{n/2})$ vs $O(b^n)$ for unidirectional.
+\end{itemize}
+
+\end{document}
