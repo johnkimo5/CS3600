@@ -11,6 +11,33 @@
 \setlength{\headheight}{14pt}
 \usepackage{titlesec}
 \usepackage{parskip}
+\usepackage{mdframed}
+\usepackage{graphicx}
+
+% Colors and framed boxes (used in lectures 8-10)
+\definecolor{keycolor}{RGB}{180, 70, 0}
+\definecolor{notecolor}{RGB}{240, 240, 255}
+\definecolor{takeawaycolor}{RGB}{255, 245, 230}
+
+\newmdenv[
+  backgroundcolor=notecolor,
+  linecolor=keycolor,
+  linewidth=1.5pt,
+  topline=false, bottomline=false, rightline=false,
+  innerleftmargin=10pt, innerrightmargin=10pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor=takeawaycolor,
+  linecolor=keycolor,
+  linewidth=2pt,
+  roundcorner=5pt,
+  innerleftmargin=10pt, innerrightmargin=10pt,
+  innertopmargin=8pt, innerbottommargin=8pt,
+]{takeawaybox}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
 
 % Code styling
 \lstset{
@@ -520,8 +547,375 @@ Alternative criteria: Entropy, Log Loss (all behave similarly; Gini is fastest).
 \textbf{Gradient Boosted Trees} (e.g., XGBoost): Build trees sequentially; each new tree corrects the residual errors of the combined ensemble.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Lectures 8, 9, 10 already written -- omitted here
+\section{Linear Regression and Gradient Descent}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The Machine Learning Workflow}
+
+Every machine learning problem follows the same high-level pattern:
+\begin{enumerate}
+  \item \textbf{Model} --- Develop a model with a set of tunable parameters.
+  \item \textbf{Loss Function} --- Define a function that measures how well the model fits the data. Lower is better.
+  \item \textbf{Train} --- Use data to optimize the parameters so that the loss function is minimized.
+  \item \textbf{Test} --- Evaluate the trained model on unseen data to measure real-world performance.
+  \item \textbf{Deploy} --- Put the model into production.
+\end{enumerate}
+
+\begin{notebox}
+This workflow is universal. Whether you are fitting a two-parameter line or training a trillion-parameter language model, these five steps always apply.
+\end{notebox}
+
+\subsection{Simple Linear Regression}
+
+\subsubsection{The Model}
+
+Consider predicting how much power (watts) can be extracted from gasoline based on its water content. We hypothesize a linear relationship:
+\[
+\hat{y} = mx + b
+\]
+where $x$ is the percentage of water in the fuel and $\hat{y}$ is the predicted power output. The \textbf{parameters} are the slope $m$ and the intercept $b$.
+
+\subsubsection{The Bias-Variance Tradeoff}
+
+\begin{notebox}
+GPT-4 has approximately 1.76 trillion parameters. Our model has 2.
+\end{notebox}
+
+The number of parameters is a fundamental design choice:
+\begin{itemize}
+  \item \textbf{Too many parameters} (high variance / overfitting): The model memorizes the training data and performs poorly on unseen data.
+  \item \textbf{Too few parameters} (high bias / underfitting): The model is not expressive enough to capture the true patterns.
+\end{itemize}
+
+\subsection{Loss Functions}
+
+\subsubsection{L1 Loss (Mean Absolute Error)}
+
+\[
+\mathcal{L}_1 = \sum_i |y_i - \hat{y}_i|
+\]
+
+\textbf{Problem:} L1 loss is not unique --- multiple very different lines can achieve the same L1 loss, making optimization unreliable.
+
+\begin{takeawaybox}
+\textit{Picking the wrong loss function can doom your efforts.}
+\end{takeawaybox}
+
+\subsubsection{L2 Loss (Mean Squared Error)}
+
+Squaring the errors fixes the uniqueness problem and penalizes large errors more heavily:
+\[
+\mathcal{L}(\theta) = \frac{1}{n}\sum_i (y_i - \hat{y}_i)^2
+\]
+
+Using the mean (dividing by $n$) instead of the sum ensures the loss magnitude does not depend on batch size.
+
+\subsection{Solving Linear Regression with Matrices}
+
+For $n$ training examples with $d$ features, augment inputs with a bias column:
+\[
+\boldsymbol{X}_{n\times(d+1)},\quad \vec{y}_{n\times1},\quad \vec{\beta}_{(d+1)\times1}
+\]
+Predictions are $\hat{y} = \boldsymbol{X}\vec{\beta}$, and the L2 loss is $\mathcal{L}(\vec{\beta}) = \vec{r}^T\vec{r}$ where $\vec{r} = \vec{y} - \boldsymbol{X}\vec{\beta}$.
+
+Taking the gradient and setting to zero gives the \textbf{Normal Equations}:
+\[
+\boxed{\vec{\beta} = (\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T\vec{y}}
+\]
+
+This closed-form solution is exact and optimal because the L2 loss for linear regression is convex.
+
+\begin{notebox}
+\textbf{Limitation:} Neural networks have no closed-form solution --- their loss is non-convex and high-dimensional. We must use \textbf{Gradient Descent}.
+\end{notebox}
+
+\subsection{Gradient Descent}
+
+\subsubsection{The Gradient}
+
+For $f(\vec{x}) : \mathbb{R}^n \to \mathbb{R}$, the gradient $\nabla f$ points in the direction of steepest ascent. Therefore $-\nabla f$ points in the direction of steepest \textbf{descent}.
+
+\subsubsection{The Algorithm}
+
+\begin{enumerate}
+  \item Initialize parameters $\theta_0$ (often random).
+  \item Compute gradient $\nabla\mathcal{L}(\theta_t)$.
+  \item Update: $\theta_{t+1} := \theta_t - \alpha\,\nabla\mathcal{L}(\theta_t)$ \quad ($\alpha > 0$ is the \textbf{learning rate}).
+  \item Repeat until $\|\nabla\mathcal{L}(\theta_t)\|$ is sufficiently small.
+\end{enumerate}
+
+For linear regression with MSE:
+\[
+\nabla\mathcal{L}(\beta) = \frac{2}{n}\boldsymbol{X}^T\!\left(\boldsymbol{X}\vec{\beta} - \vec{y}\right)
+\]
+
+\subsubsection{Choosing the Learning Rate}
+
+\begin{itemize}
+  \item \textbf{Too large:} Overshoots the minimum; loss oscillates or diverges.
+  \item \textbf{Too small:} Extremely slow convergence.
+\end{itemize}
+Gradually decrease $\alpha$ over training (\textbf{learning rate scheduling}): start large for fast progress, shrink to fine-tune.
+
+\subsubsection{Local Minima in High Dimensions}
+
+For a stable local minimum to exist, \emph{every} second partial derivative must be positive simultaneously --- extremely unlikely in millions of dimensions. Most apparent local minima in deep learning are actually \textbf{saddle points} from which gradient descent naturally escapes.
+
+\subsection{Practical Improvements to Gradient Descent}
+
+\subsubsection{Data Standardization}
+
+When features have different scales, the loss landscape is ill-conditioned. Fix: standardize each feature to zero mean, unit variance:
+\[
+\hat{x}_i = \frac{x_i - \mu_i}{\sigma_i}
+\]
+
+\begin{notebox}
+\textbf{Critical rule:} Compute $\mu$ and $\sigma$ on the \emph{training} set only. Apply those same values at test time --- never recompute on test data (data leakage).
+\end{notebox}
+
+\subsubsection{Mini-Batch Gradient Descent and Momentum}
+
+Split large datasets into \textbf{mini-batches}. Noisy gradients are smoothed with \textbf{momentum}: an exponential running average of past gradients:
+\[
+\vec{v} := m\vec{v} + (1-m)\,\nabla\mathcal{L}(\theta_i), \qquad \theta_{i+1} := \theta_i - \alpha\vec{v}
+\]
+where $m \in [0,1)$ controls velocity retention. Momentum also helps escape saddle points.
+
+\subsubsection{Adam Optimizer}
+
+\textbf{Adam} (Adaptive Moment Estimation, Kingma \& Ba 2014) is the default optimizer in modern deep learning. It combines:
+\begin{itemize}
+  \item \textbf{Momentum}: running average of gradients (1st moment).
+  \item \textbf{Adaptive learning rates}: scales per-parameter using running average of squared gradients (2nd moment).
+  \item \textbf{Bias correction}: corrects for zero-initialization of moment estimates.
+\end{itemize}
+
+\begin{takeawaybox}
+\textbf{Central theme:} \textit{Differentiable = Good.} Gradient descent can only optimize functions it can differentiate. Every design choice in modern ML --- activations, loss functions, softmax --- is driven by the requirement of differentiability.
+\end{takeawaybox}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Classification and Machine Learning}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{From Regression to Classification}
+
+The same ML workflow applies to classification. The challenge is adapting each piece for discrete class-label outputs. Key requirement: a \emph{differentiable} loss function over the parameters.
+
+\subsection{Evaluating a Binary Classifier}
+
+\subsubsection{The Confusion Matrix}
+
+\begin{center}
+\begin{tabular}{l|cc}
+ & \textbf{Predicted Negative} & \textbf{Predicted Positive} \\\hline
+\textbf{Actually Negative} & True Negative (TN) & False Positive (FP) \\
+\textbf{Actually Positive} & False Negative (FN) & True Positive (TP) \\
+\end{tabular}
+\end{center}
+
+\subsubsection{Metrics}
+
+\[
+\text{Accuracy} = \frac{\text{TP} + \text{TN}}{n}, \quad
+\text{Recall} = \frac{\text{TP}}{\text{TP}+\text{FN}}, \quad
+\text{Precision} = \frac{\text{TP}}{\text{TP}+\text{FP}}
+\]
+\[
+\text{F1} = 2 \times \frac{\text{Recall} \times \text{Precision}}{\text{Recall} + \text{Precision}}
+\]
+
+\begin{notebox}
+\textbf{Recall vs.\ Precision tradeoff:} In medical diagnosis, missing a true positive (low recall) can be fatal --- lower the threshold. In spam filtering, falsely flagging legitimate emails (low precision) is costly --- raise the threshold. The threshold is a business decision, not a model decision.
+\end{notebox}
+
+\subsubsection{ROC Curve and AUC}
+
+A \textbf{ROC} curve sweeps the decision threshold from 0 to 1, plotting True Positive Rate vs.\ False Positive Rate at each point. The \textbf{AUC} (Area Under the Curve) summarizes this in a single number: 1.0 = perfect, 0.5 = random. AUC is threshold-independent and is often the best single metric for comparing classifiers.
+
+\subsection{Loss Functions for Classification}
+
+\subsubsection{Why Not Accuracy?}
+
+Accuracy, recall, and F1 depend on a hard threshold and are \textbf{not differentiable}. We need smooth probability-like outputs.
+
+\subsubsection{The Sigmoid (Logistic) Function}
+
+\[
+\sigma(x) = \frac{1}{1+e^{-x}} \in (0,1), \qquad \sigma'(x) = \sigma(x)(1-\sigma(x))
+\]
+
+Composing sigmoid with a linear model: $\hat{y} = \sigma(\beta^T x) \in (0,1)$.
+
+\subsubsection{Cross-Entropy Loss}
+
+Derived from maximum likelihood estimation; convex and differentiable:
+\[
+\boxed{\text{CE} = -\frac{1}{n}\sum_i\bigl[y_i\log(\hat{y}_i) + (1-y_i)\log(1-\hat{y}_i)\bigr]}
+\]
+
+\begin{takeawaybox}
+\textbf{Logistic Regression:} linear features $\to$ sigmoid $\to$ optimize with cross-entropy. Despite the name, it is a \emph{classifier}.
+\end{takeawaybox}
+
+\subsubsection{Regularization}
+
+If training data is linearly separable, cross-entropy pushes weights to $\pm\infty$. Add L2 regularization to prevent this:
+\[
+\mathcal{L}(\beta) = \text{CE}(\beta) + \lambda\,\beta^T\beta
+\]
+
+\subsection{Multi-Class Classification}
+
+\subsubsection{Softmax: A Differentiable Argmax}
+
+For $k$ classes, assign each class a score $z_c = \vec{\beta}_c^T\vec{x}$. The \textbf{softmax} converts scores to probabilities:
+\[
+\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}}
+\]
+Properties: outputs in $(0,1)$, sum to 1, differentiable everywhere. It is the gradient of the smooth $\log\sum_k e^{x_k}$ approximation to $\max$.
+
+\subsubsection{Temperature-Scaled Softmax}
+
+\[
+\text{softmax}_T(r_i) = \frac{\exp(r_i/T)}{\sum_j \exp(r_j/T)}
+\]
+$T \to 0$: one-hot (confident); $T = 1$: standard; $T \to \infty$: uniform (uncertain). Used in knowledge distillation and controlling language model output randomness.
+
+\subsection{Multi-Class Loss}
+
+\subsubsection{One-Hot Encoding and Mean Cross-Entropy}
+
+With $n$ samples and $k$ classes, let $\boldsymbol{Y}$ be the $n \times k$ one-hot matrix and $\hat{\boldsymbol{Y}}$ the softmax outputs:
+\[
+\boxed{\mathcal{L} = -\sum_{i=1}^{n}\sum_{j=1}^{k} y_{i,j}\log(\hat{y}_{i,j})}
+\]
+Only the log-probability of the correct class contributes per sample (since $y_{i,j}$ is one-hot).
+
+\subsubsection{Gradient via the Chain Rule}
+
+The combined gradient of softmax + cross-entropy w.r.t.\ pre-softmax scores $\boldsymbol{Z} = \boldsymbol{X}\boldsymbol{\beta}$ is elegantly simple:
+\[
+\frac{\partial\mathcal{L}}{\partial z_{i,j}} = \hat{y}_{i,j} - y_{i,j}
+\qquad \Longrightarrow \qquad
+\boxed{\nabla_\beta \mathcal{L} = \boldsymbol{X}^T(\hat{\boldsymbol{Y}} - \boldsymbol{Y})}
+\]
+Prediction minus truth. Elegant and computationally cheap.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Neural Networks}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Motivation: Beyond Linear Models}
+
+Linear models only model linear relationships. Real-world data almost never is linearly separable. We need a model that can approximate \emph{any} function $f(\vec{x}) \to \mathbb{R}$.
+
+\begin{takeawaybox}
+\textbf{Intuition:} Think of non-linear data as a crumpled piece of paper. A linear model tries to cut through it with a flat plane --- hopeless. A neural network can \emph{bend} the space to flatten it first, then apply a linear separator.
+\end{takeawaybox}
+
+\subsection{Neural Network Architecture}
+
+\subsubsection{The Basic Building Block}
+
+Each neuron in a hidden layer: (1) takes a \emph{weighted sum} of all inputs plus a bias; (2) passes through a non-linear \textbf{activation function}.
+
+For inputs $\vec{x}$, hidden layer weights $W^1$, biases $\vec{b}^1$, and activation $\sigma$:
+\[
+\vec{a} := \sigma\!\left(\vec{x}\,W^1 + \vec{b}^1\right)
+\]
+Without the activation, stacking layers is still just one linear map. Activations introduce the non-linearity that makes neural networks powerful.
+
+\subsubsection{Batch Processing}
+
+For a batch of $n$ examples with $d$ inputs and $k$ hidden units:
+\[
+Y_{n \times k} := X_{n \times d} \cdot W_{d \times k} + B_{n \times k}
+\]
+Processing batches is critical for GPU efficiency --- matrix-matrix multiplication is far faster than repeated matrix-vector multiplication.
+
+\subsubsection{Universal Approximation Theorem}
+
+\begin{theorem}[Universal Approximation, 1989]
+A neural network with a single hidden layer of sufficient width and a sigmoid activation can approximate any continuous function to arbitrary precision.
+\end{theorem}
+
+In practice, depth beats width: deeper networks learn better representations with fewer total parameters.
+
+\subsection{Activation Functions}
+
+\subsubsection{Sigmoid}
+\[
+\sigma(x) = \frac{1}{1+e^{-x}}, \qquad \sigma'(x) = \sigma(x)(1-\sigma(x))
+\]
+Natural for probabilities. \textbf{Downside:} saturates for large $|x|$, causing vanishing gradients.
+
+\subsubsection{ReLU (Rectified Linear Unit)}
+\[
+\text{relu}(x) = \max(0,x), \qquad \text{relu}'(x) = \begin{cases}0 & x < 0 \\ 1 & x > 0\end{cases}
+\]
+The \textbf{default} for hidden layers. Gradient is 0 or 1 --- greatly reduces vanishing gradients; cheap to compute.
+
+\begin{notebox}
+\textbf{Dying ReLU:} If a neuron's pre-activation is always negative, its gradient is always 0 and it never learns. Leaky-ReLU fixes this with a small slope $\alpha > 0$ for $x < 0$.
+\end{notebox}
+
+\subsubsection{Other Common Activations}
+
+\textbf{Tanh:} $\tanh(x) \in (-1,1)$; zero-centered, often better than sigmoid for hidden layers.
+
+\textbf{Leaky-ReLU:} $\max(\alpha x, x)$ with small $\alpha$; prevents dying neurons.
+
+\textbf{Swish:} $x \cdot \sigma(x)$; smooth, self-gated; often outperforms ReLU in deep networks.
+
+\subsection{Training Neural Networks: Backpropagation}
+
+\subsubsection{Overview}
+
+Training alternates between two passes:
+\begin{itemize}
+  \item \textbf{Forward pass:} Feed data through network; compute and store intermediate activations; compute loss.
+  \item \textbf{Backward pass:} Walk backwards through network; compute gradients via the chain rule; update parameters.
+\end{itemize}
+
+\subsubsection{The Jacobian and Chain Rule}
+
+For $f : \mathbb{R}^d \to \mathbb{R}^m$, the \textbf{Jacobian} $J_f$ has $(J_f)_{i,k} = \partial f_i / \partial x_k$. Chain rule in matrix form: if $h : \mathbb{R}^m \to \mathbb{R}$, then $\nabla[h \circ f] = J_f^T (\nabla h)$.
+
+\subsubsection{Gradients for a Fully-Connected Layer}
+
+For a layer $Z_{\text{out}} = Z_{\text{in}} W + B$ followed by loss $\mathcal{L}$, given upstream gradient $\nabla_{Z_{\text{out}}}\mathcal{L}$:
+
+\begin{description}
+  \item[Weights:] $\nabla_W \mathcal{L} = Z_{\text{in}}^T [\nabla_{Z_{\text{out}}} \mathcal{L}]$
+  \item[Biases:] $\nabla_{\vec{b}} \mathcal{L} =$ column sum of $\nabla_{Z_{\text{out}}} \mathcal{L}$
+  \item[Upstream:] $\nabla_{Z_{\text{in}}} \mathcal{L} = [\nabla_{Z_{\text{out}}} \mathcal{L}]\, W^T$
+\end{description}
+
+\subsubsection{Gradient Through ReLU}
+
+ReLU is applied element-wise; its gradient is a simple \textbf{mask}: pass the upstream gradient through wherever the input was positive, zero it out elsewhere.
+\[
+\frac{\partial \mathcal{L}}{\partial Z1_{i,j}} = \begin{cases} \nabla_{Z2}\mathcal{L}_{i,j} & Z1_{i,j} \geq 0 \\ 0 & Z1_{i,j} < 0 \end{cases}
+\]
+
+\subsubsection{Output Gradient: Softmax + Cross-Entropy}
+
+The combined gradient of softmax + mean cross-entropy w.r.t.\ the pre-softmax scores is:
+\[
+\nabla_{Z_{\text{out}}}\mathcal{L} = \frac{1}{n}(\hat{y} - y)
+\]
+Prediction minus truth --- the cleanest result in all of backpropagation.
+
+\subsection{Training in Practice}
+
+A healthy training run shows loss decreasing steeply at first, then leveling off. Key sanity checks:
+\begin{itemize}
+  \item Loss should decrease; if it increases or produces NaNs, there is likely a gradient bug.
+  \item Decreasing cross-entropy should correspond to improving classification accuracy.
+  \item Test accuracy matters: if training loss drops but test accuracy stagnates, you are overfitting.
+\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Convolutional Neural Networks and Flax NNX}
